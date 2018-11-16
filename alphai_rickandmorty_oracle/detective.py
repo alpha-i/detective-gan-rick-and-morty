@@ -22,6 +22,21 @@ class RickAndMortyDetective(AbstractDetective):
 
     """
     def __init__(self, model_configuration: dict):
+        """
+        The model configuration is a dictionary containing the configuration parameters for the underlying ML model.
+
+        The most important variables are:
+            - batch_size: which determines the size of the batch during training
+            - output_dimensions: set the dimension of the network. it must be set to be comform to the data shape
+            - train_iters: how many iteration the model should do during training
+
+        Optional values are:
+            - plot_save_path: if it's valued it forces the model to dump an png image of the batch
+            - load_path: defines where are the pre-trained model files located
+            - save_path: defines where the training files should be saved.
+
+        :param dict model_configuration:
+        """
         batch_size = model_configuration.get('batch_size', DEFAULT_BATCH_SIZE)
         output_dimensions = model_configuration.get('output_dimensions', DEFAULT_MODEL_DIMS)
         train_iters = model_configuration.get('train_iters', DEFAULT_TRAIN_ITERS)
@@ -41,7 +56,12 @@ class RickAndMortyDetective(AbstractDetective):
         self.load_path = load_path
 
     def train(self, train_sample: Sample) -> None:
+        """
+        Performs the training of the model
 
+        :param alphai_watson.datasource.Sample train_sample:
+        :return:
+        """
         logging.debug("Starting session")
         self.model.run_training_routine(train_sample)
         logging.debug("Training complete.")
@@ -50,6 +70,12 @@ class RickAndMortyDetective(AbstractDetective):
             self.model.save(self.save_path)
 
     def detect(self, test_sample: Sample) -> DetectionResult:
+        """
+        Performs the detection of the model
+
+        :param alphai_watson.datasource.Sample test_sample:
+        :return:
+        """
 
         logging.info("Running detector on {}".format(test_sample))
 
@@ -66,7 +92,9 @@ class RickAndMortyDetective(AbstractDetective):
         )
 
     def diagnose(self, test_chunk):
-        """ Finds the closest synthetic chunk to the input data. Useful for highlighting the anomaly.
+        """
+
+        Finds the closest synthetic chunk to the input data. Useful for highlighting the anomaly.
 
         :param ndarray test_chunk:
         :return: ndarray synthetic_chunk: The synthetic_chunk
@@ -80,4 +108,8 @@ class RickAndMortyDetective(AbstractDetective):
 
     @property
     def configuration(self):
+        """
+        Return a dict with the used configuration, to be saved during testing phase
+        :return:
+        """
         return self._config
