@@ -1,0 +1,15 @@
+[flake8]
+max-line-length = 120
+exclude=
+    # src is where the pip installs other build related stuff in CI builds.
+    src/,
+    #doc/,
+    # No need to traverse our git directory
+    .git/,
+    __pycache__,
+    build,
+    dist,
+    examples/,
+    setup.py,
+
+max-complexity = 16
