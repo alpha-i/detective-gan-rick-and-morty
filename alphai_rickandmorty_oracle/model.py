@@ -360,7 +360,7 @@ class RickAndMorty(object):
         for iteration in range(self.train_iters):
             start_time = time.time()
 
-            if iteration % 100 == 0:
+            if iteration % 10 == 0:
                 logging.info("Training iteration {} of {}".format(iteration, self.train_iters))
 
             if iteration > 0:
@@ -382,7 +382,7 @@ class RickAndMorty(object):
 
             # Calculate dev loss and generate samples every 100 iters
             if iteration % 100 == 99:
-                self.generate_fake_chunks(iteration)
+                self.generate_fake_chunks()
 
             # Write logs every 100 iters
             if ((iteration < 5) or (iteration % 100 == 99)) and self._plot_save_path:
