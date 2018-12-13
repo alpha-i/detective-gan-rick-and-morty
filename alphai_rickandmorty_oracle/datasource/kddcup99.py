@@ -1,13 +1,12 @@
 import logging
-
-import h5py
+import pandas as pd
 
 from alphai_watson.datasource import AbstractDataSource
 
 
 class KDDCup99DataSource(AbstractDataSource):
     """
-    Implements a Datasource for Kaggle Brainwaves data
+    Implements a Datasource for the KDDCup99 10 Percent dataset
     """
     SAMPLE_TYPES = ['NORMAL', 'ABNORMAL']
 
@@ -16,27 +15,24 @@ class KDDCup99DataSource(AbstractDataSource):
 
     @property
     def sample_rate(self):
-        return self._sample_rate
+        return 0
 
     def _read_samples(self):
         """
         Parses the source file for a give sample_type.
-        Every sample should have the shape of (number_of_sensors, data_length)
         """
 
-        logging.debug("Start file parsing")
+        logging.debug("Start file parsing.")
+        data = pd.read_csv(self._source_file, header=None)
         samples = {}
-        with h5py.File(self._source_file, 'r') as store:
-            for sample_type in self.SAMPLE_TYPES:
-                samples_of_type = store.get(sample_type)
-                sample_list = samples_of_type.get('DATA')
-                _data = [
-                    sample_list.get(sample_id).value
-                    for sample_id in list(sample_list.keys())
-                ]
-                self._sample_rate = samples_of_type.get('SAMPLE_RATE').value  # FIXME
-                samples[sample_type] = _data
+        samples['NORMAL'] = data.values
 
-        logging.debug("end file parsing")
+        logging.debug("End file parsing.")
 
         return samples
+    
+    def _extract_and_process_samples(self, sample_list):
+        """
+        Returns samples
+        """
+        return sample_list
