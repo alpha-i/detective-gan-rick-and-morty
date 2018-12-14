@@ -1,5 +1,6 @@
 import logging
 import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
 
 from alphai_watson.datasource import AbstractDataSource
 
@@ -54,17 +55,23 @@ class KDDCup99DataSource(AbstractDataSource):
         data_normal_train = data_normal.sample(frac=0.7)
         data_normal_test = data_normal.loc[~data_normal.index.isin(data_normal_train.index)]
 
-        data_normal_train = data_normal_train.drop(columns=['label'])
-        data_normal_test = data_normal_test.drop(columns=['label'])
-        data_abnormal = data_abnormal.drop(columns=['label'])
+        data_normal_train = data_normal_train.drop(columns=['label']).values
+        data_normal_test = data_normal_test.drop(columns=['label']).values
+        data_abnormal = data_abnormal.drop(columns=['label']).values
+        
+        scaler = MinMaxScaler()
+        _ = scaler.fit(data_normal_train)
+        data_normal_train = scaler.transform(data_normal_train)
+        data_normal_test = scaler.transform(data_normal_test)
+        data_abnormal = scaler.transform(data_abnormal)
         
         logging.debug('Normal {}; Train {}; Test{}'.format(data_normal.shape, data_normal_train.shape, data_normal_test.shape))
         logging.debug('Abnormal {}'.format(data_abnormal.shape))
 
         samples = {}
-        samples['NORMAL'] = data_normal_train.values
-        samples['NORMAL_TEST'] = data_normal_test.values
-        samples['ABNORMAL_TEST'] = data_abnormal.values
+        samples['NORMAL'] = data_normal_train
+        samples['NORMAL_TEST'] = data_normal_test
+        samples['ABNORMAL_TEST'] = data_abnormal
 
         logging.debug("End file parsing.")
 

@@ -135,6 +135,8 @@ class RickAndMorty(object):
                                       units=121,
                                       kernel_initializer=INIT_KERNEL,
                                       name='fc')
+                net = tf.nn.sigmoid(net, name='sigmoid')
+
 
             return net
 
@@ -189,7 +191,7 @@ class RickAndMorty(object):
                                       units=1,
                                       kernel_initializer=INIT_KERNEL,
                                       name='fc')
-#                 net = tf.nn.sigmoid(net, name='sigmoid')
+                net = tf.nn.sigmoid(net, name='sigmoid')
 
 #             net = tf.squeeze(net)
 
@@ -418,7 +420,7 @@ class RickAndMorty(object):
         for iteration in range(self.train_iters):
             start_time = time.time()
 
-            if iteration % 10 == 0:
+            if iteration % 100 == 0:
                 logging.info("Training iteration {} of {}".format(iteration, self.train_iters))
 
             if iteration > 0:
