@@ -10,12 +10,13 @@ class KDDCup99DataSource(AbstractDataSource):
     """
     SAMPLE_TYPES = ['NORMAL', 'ABNORMAL']
 
-    def __init__(self, source_file, transformer):
+    def __init__(self, source_file, header_file, transformer):
+        self._header_file = header_file
         super().__init__(source_file, transformer)
 
     @property
     def sample_rate(self):
-        return 0
+        return 10
 
     def _read_samples(self):
         """
@@ -24,8 +25,46 @@ class KDDCup99DataSource(AbstractDataSource):
 
         logging.debug("Start file parsing.")
         data = pd.read_csv(self._source_file, header=None)
+        
+        data = pd.read_csv(self._source_file, header=None)
+        header = pd.read_csv(self._header_file, delimiter=':', skiprows=1, header=None)
+        header.columns = ['column', 'column_type']
+
+        data.columns = header.column.tolist() + ['attack']
+        data['attack'] = data['attack'].str.replace('.', '')
+        data['label'] = 1
+        data.loc[data['attack'] == 'normal', 'label'] = 0
+
+        symbolic_columns = header.loc[header.column_type == ' symbolic.'].column.tolist()
+        # print(symbolic_columns)
+
+        for scol in symbolic_columns:
+            data[scol] = pd.Categorical(data[scol])
+            one_hot_cols = pd.get_dummies(data[scol], prefix=scol)
+            data = pd.concat([data, one_hot_cols], axis=1)
+
+        data = data.drop(columns=symbolic_columns)
+        data = data.drop(columns=['attack'])
+
+        # data.loc[data.attack != 'normal' , ['attack', 'label']].head(20)
+
+        data_normal = data.loc[data['label'] == 0]
+        data_abnormal = data.loc[data['label'] == 1]
+
+        data_normal_train = data_normal.sample(frac=0.7)
+        data_normal_test = data_normal.loc[~data_normal.index.isin(data_normal_train.index)]
+
+        data_normal_train = data_normal_train.drop(columns=['label'])
+        data_normal_test = data_normal_test.drop(columns=['label'])
+        data_abnormal = data_abnormal.drop(columns=['label'])
+        
+        logging.debug('Normal {}; Train {}; Test{}'.format(data_normal.shape, data_normal_train.shape, data_normal_test.shape))
+        logging.debug('Abnormal {}'.format(data_abnormal.shape))
+
         samples = {}
-        samples['NORMAL'] = data.values
+        samples['NORMAL'] = data_normal_train.values
+        samples['NORMAL_TEST'] = data_normal_test.values
+        samples['ABNORMAL_TEST'] = data_abnormal.values
 
         logging.debug("End file parsing.")
 
@@ -35,4 +74,5 @@ class KDDCup99DataSource(AbstractDataSource):
         """
         Returns samples
         """
+        
         return sample_list

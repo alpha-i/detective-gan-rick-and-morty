@@ -16,7 +16,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Forces GPU
 
 DEFAULT_TRAIN_ITERS = 5000  # How many generator iterations to train for. Default 50k
 DEFAULT_FIT_EPOCHS = 1000  # How many iterations to diagnose the anomaly
-DEFAULT_Z_DIM = 128
+DEFAULT_Z_DIM = 32
 Factor_M = 0.0  # factor M
 LAMBDA_2 = 2.0  # Weight factor. Previously 0.4
 
@@ -24,10 +24,15 @@ DIM = 64  # Model dimensionality
 BATCH_SIZE = 50  # Batch size
 CRITIC_ITERS = 5  # Number of critic iters per gen iter
 LAMBDA = 10  # Gradient penalty lambda hyperparameter
-OUTPUT_DIM = 784  # Number of pixels in MNIST (28*28)
+OUTPUT_DIM = 121  # Number of attributes in KDDCUP99
 DEFAULT_LEARN_RATE = 0.0001
 DIAGNOSIS_LEARN_RATE = 0.01
 DISC_FILTER_SIZE = 5
+INIT_KERNEL = tf.contrib.layers.xavier_initializer()
+
+reuse = tf.AUTO_REUSE
+getter = None
+
 
 lib.print_model_settings(locals().copy())
 
@@ -36,6 +41,16 @@ def LeakyReLU(x, alpha=0.2):
     """ Discriminators tend to train better when using this activation function. """
     return tf.maximum(alpha * x, x)
 
+
+def leakyReLu(x, alpha=0.1, name=None):
+    if name:
+        with tf.variable_scope(name):
+            return _leakyReLu_impl(x, alpha)
+    else:
+        return _leakyReLu_impl(x, alpha)
+
+def _leakyReLu_impl(x, alpha):
+    return tf.nn.relu(x) - (alpha * tf.nn.relu(-x))
 
 class RickAndMorty(object):
     """
@@ -98,23 +113,30 @@ class RickAndMorty(object):
 
         if noise is None:
             noise = tf.random_normal([n_chunks, self.z_dim])
+   
+        with tf.variable_scope('generator', reuse=reuse, custom_getter=getter):
 
-        output = lib.ops.linear.Linear('generator.Input', self.z_dim, 4 * 4 * 4 * DIM, noise)
-        output = tf.nn.relu(output)
-        output = tf.reshape(output, [-1, 4 * DIM, 4, 4])
+            with tf.variable_scope('layer_1'):
+                net = tf.layers.dense(noise,
+                                      units=64,
+                                      kernel_initializer=INIT_KERNEL,
+                                      name='fc')
+                net = tf.nn.relu(net, name='relu')
 
-        output = lib.ops.deconv2d.Deconv2D('generator.2', 4 * DIM, 2 * DIM, 5, output)
-        output = tf.nn.relu(output)
+            with tf.variable_scope('layer_2'):
+                net = tf.layers.dense(net,
+                                      units=128,
+                                      kernel_initializer=INIT_KERNEL,
+                                      name='fc')
+                net = tf.nn.relu(net, name='relu')
 
-        output = output[:, :, :7, :7]
+            with tf.variable_scope('layer_3'):
+                net = tf.layers.dense(net,
+                                      units=121,
+                                      kernel_initializer=INIT_KERNEL,
+                                      name='fc')
 
-        output = lib.ops.deconv2d.Deconv2D('generator.3', 2 * DIM, DIM, 5, output)
-        output = tf.nn.relu(output)
-
-        output = lib.ops.deconv2d.Deconv2D('generator.5', DIM, 1, 5, output)
-        output = tf.nn.sigmoid(output)
-
-        return tf.reshape(output, [-1, OUTPUT_DIM])
+            return net
 
     def discriminator(self, inputs, keep_prob):
         """ Decides whether the input is anomalous or not
@@ -123,22 +145,55 @@ class RickAndMorty(object):
         :param tensor keep_prob: Probability of keeping node. Set to 0.5 for training; 1 for testing
         :return: tensor, tensor: output, feature_layer
         """
+        
+        if keep_prob == 1:
+            is_training = False
+        else:
+            is_training = True
+            
+        with tf.variable_scope('discriminator', reuse=reuse, custom_getter=getter):
 
-        output = tf.reshape(inputs, [-1, 1, 28, 28])  # 28x28 or 8x98
-        output = lib.ops.conv2d.Conv2D('discriminator.1', 1, DIM, DISC_FILTER_SIZE, output,
-                                       stride=2)  # name, input, output, filter
-        output = LeakyReLU(output)
-        output = tf.nn.dropout(output, keep_prob=keep_prob)  # adding dropout after activators
-        output = lib.ops.conv2d.Conv2D('discriminator.2', DIM, 2 * DIM, DISC_FILTER_SIZE, output, stride=2)
-        output = LeakyReLU(output)
-        output = tf.nn.dropout(output, keep_prob=keep_prob)  # adding dropout after activators
-        output = lib.ops.conv2d.Conv2D('discriminator.3', 2 * DIM, 4 * DIM, DISC_FILTER_SIZE, output, stride=2)
-        output = LeakyReLU(output)
-        output = tf.nn.dropout(output, keep_prob=keep_prob)  # adding dropout after activators
-        output2 = tf.reshape(output, [-1, 4 * 4 * 4 * DIM])  # D_
-        output = lib.ops.linear.Linear('discriminator.Output', 4 * 4 * 4 * DIM, 1, output2)  # D
+            with tf.variable_scope('layer_1'):
+                net = tf.layers.dense(inputs,
+                                      units=256,
+                                      kernel_initializer=INIT_KERNEL,
+                                      name='fc')
+                net = leakyReLu(net)
+                net = tf.layers.dropout(net, rate=0.2, name='dropout',
+                                      training=is_training)
 
-        return tf.reshape(output, [-1]), output2
+            with tf.variable_scope('layer_2'):
+                net = tf.layers.dense(net,
+                                      units=128,
+                                      kernel_initializer=INIT_KERNEL,
+                                      name='fc')
+                net = leakyReLu(net)
+                net = tf.layers.dropout(net, rate=0.2, name='dropout',
+                                      training=is_training)
+
+            with tf.variable_scope('layer_3'):
+                net = tf.layers.dense(net,
+                                      units=128,
+                                      kernel_initializer=INIT_KERNEL,
+                                      name='fc')
+                net = leakyReLu(net)
+                net = tf.layers.dropout(net,
+                                        rate=0.2,
+                                        name='dropout',
+                                        training=is_training)
+            
+            intermediate_net = net
+            
+            with tf.variable_scope('layer_4'):
+                net = tf.layers.dense(net,
+                                      units=1,
+                                      kernel_initializer=INIT_KERNEL,
+                                      name='fc')
+#                 net = tf.nn.sigmoid(net, name='sigmoid')
+
+#             net = tf.squeeze(net)
+
+            return net, intermediate_net
 
     def generate_fake_chunks(self):
         """ Save random samples from the generator to help assess its performance. """
@@ -195,8 +250,11 @@ class RickAndMorty(object):
 
         gen_cost, disc_cost = self.get_cost_ops(real_data, keep_prob)
 
-        gen_params = lib.params_with_name('generator')
-        disc_params = lib.params_with_name('discriminator')
+#         gen_params = lib.params_with_name('generator')
+#         disc_params = lib.params_with_name('discriminator')
+        
+        disc_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
+        gen_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
 
         gen_train_op = tf.train.AdamOptimizer(
             learning_rate=self.learning_rate,
