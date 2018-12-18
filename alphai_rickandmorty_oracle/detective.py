@@ -5,7 +5,7 @@ import numpy as np
 from alphai_watson.datasource import Sample
 from alphai_watson.detective import AbstractDetective, DetectionResult
 
-from alphai_rickandmorty_oracle.model import RickAndMorty
+from alphai_rickandmorty_oracle.model_kddcup99 import RickAndMorty
 
 DEFAULT_TRAIN_ITERS = 1  # 50k takes 3 hours
 ITERATIONS_PER_TEST = 10000  # 1000

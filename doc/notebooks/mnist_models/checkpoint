@@ -1,0 +1,2 @@
+model_checkpoint_path: "MNIST-abnormalclass-0"
+all_model_checkpoint_paths: "MNIST-abnormalclass-0"
