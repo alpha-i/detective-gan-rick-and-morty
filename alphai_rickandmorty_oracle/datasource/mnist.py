@@ -7,7 +7,7 @@ from alphai_watson.datasource import AbstractDataSource, Sample
 
 class MNISTDataSource(AbstractDataSource):
     """
-    Implements a Datasource for Kaggle Brainwaves data
+    Implements a Datasource for the MNIST data
     """
     SAMPLE_TYPES = ['NORMAL', 'ABNORMAL']
 
@@ -24,7 +24,7 @@ class MNISTDataSource(AbstractDataSource):
         Every sample should have the shape of (number_of_sensors, data_length)
         """
 
-        logging.debug("Start file parsing")
+        logging.debug("Start file parsing.")
         samples = {}
         with h5py.File(self._source_file, 'r') as _h5file:
             for sample_type in list(_h5file.keys()):
@@ -32,7 +32,7 @@ class MNISTDataSource(AbstractDataSource):
                 samples[sample_type] = _data
 
         self._sample_rate = 1.0  # FIXME
-        logging.debug("end file parsing")
+        logging.debug("End file parsing.")
 
         return samples
 
