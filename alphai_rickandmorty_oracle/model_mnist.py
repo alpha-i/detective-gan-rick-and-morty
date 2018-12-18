@@ -361,7 +361,7 @@ class RickAndMorty(object):
         for iteration in range(self.train_iters):
             start_time = time.time()
 
-            if iteration % 10 == 0:
+            if iteration % 100 == 0:
                 logging.info("Training iteration {} of {}".format(iteration, self.train_iters))
 
             if iteration > 0:
