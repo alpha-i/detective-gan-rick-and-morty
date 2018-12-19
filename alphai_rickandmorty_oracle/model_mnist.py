@@ -52,7 +52,7 @@ class RickAndMorty(object):
         :param z_dim: Size of random number entering generator
         """
 
-        self.fixed_noise = tf.constant(np.random.normal(size=(128, 128)).astype('float32'))
+        self.fixed_noise = tf.constant(np.random.normal(size=(128, z_dim)).astype('float32'))
         self.z_dim = z_dim
         self.saver = None
         self.is_initialised = False

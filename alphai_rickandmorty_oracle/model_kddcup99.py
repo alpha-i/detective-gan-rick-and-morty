@@ -67,7 +67,7 @@ class RickAndMorty(object):
         :param z_dim: Size of random number entering generator
         """
 
-        self.fixed_noise = tf.constant(np.random.normal(size=(128, 128)).astype('float32'))
+        self.fixed_noise = tf.constant(np.random.normal(size=(128, z_dim)).astype('float32'))
         self.z_dim = z_dim
         self.saver = None
         self.is_initialised = False
@@ -204,7 +204,7 @@ class RickAndMorty(object):
             fixed_fake_chunks = self.generator(128, noise=self.fixed_noise)
             samples = self.tf_session.run(fixed_fake_chunks)
             lib.save_images.save_images(
-                samples.reshape((128, 28, 28)),
+                samples.reshape((128, 11, 11)),
                 os.path.join(self._plot_save_path, 'fake_chunks.png')
             )
             logging.info("Saving fake samples to png: {}".format(samples))
