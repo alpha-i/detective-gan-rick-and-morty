@@ -1,6 +1,6 @@
 import logging
-
 import h5py
+import numpy as np
 
 from alphai_watson.datasource import AbstractDataSource, Sample
 
@@ -28,8 +28,8 @@ class MNISTDataSource(AbstractDataSource):
         samples = {}
         with h5py.File(self._source_file, 'r') as _h5file:
             for sample_type in list(_h5file.keys()):
-                _data = list(_h5file[sample_type])
-                samples[sample_type] = _data
+                logging.debug('Processing sample type {}.'.format(sample_type))
+                samples[sample_type] = np.array(_h5file[sample_type])
 
         self._sample_rate = 1.0  # FIXME
         logging.debug("End file parsing.")
