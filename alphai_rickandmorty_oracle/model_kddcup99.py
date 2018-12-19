@@ -216,35 +216,28 @@ class RickAndMorty(object):
         :param keep_prob: Tensor which should hold the value of 1.0 during testing
         :return: Cost associated with the generator and discriminator.
         """
-
+        
         fake_data = self.generator(self.batch_size)
+        real_d, inter_layer_real = self.discriminator(real_data, keep_prob)
+        fake_d, inter_layer_fake = self.discriminator(fake_data, keep_prob)
 
-        disc_real, disc_real_2 = self.discriminator(real_data, keep_prob)
-        disc_real_, disc_real_2_ = self.discriminator(real_data, keep_prob)
-        disc_fake, disc_fake_ = self.discriminator(fake_data, keep_prob)
+        
+        # Calculate seperate losses for discriminator with real and fake images
+        real_discriminator_loss = tf.reduce_mean(
+            tf.nn.sigmoid_cross_entropy_with_logits(logits=inter_layer_real,
+                                                    labels=tf.ones_like(inter_layer_real)))
+        
+        fake_discriminator_loss = tf.reduce_mean(
+            tf.nn.sigmoid_cross_entropy_with_logits(logits=inter_layer_fake,
+                                                    labels=tf.zeros_like(inter_layer_fake)))
 
-        # original cost
-        gen_cost = -tf.reduce_mean(disc_fake)
-        disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
-
-        # consistency cost
-        consistency_cost = LAMBDA_2 * tf.square(disc_real - disc_real_)
-        consistency_cost += LAMBDA_2 * 0.1 * tf.reduce_mean(tf.square(disc_real_2 - disc_real_2_),
-                                                            reduction_indices=[1])
-        CT_ = tf.maximum(consistency_cost - Factor_M, 0.0 * (consistency_cost - Factor_M))
-        disc_cost += tf.reduce_mean(CT_)
-
-        alpha = tf.random_uniform(
-            shape=[self.batch_size, 1],
-            minval=0.,
-            maxval=1.
-        )
-        differences = fake_data - real_data
-        interpolates = real_data + (alpha * differences)
-        gradients = tf.gradients(self.discriminator(interpolates, keep_prob)[0], [interpolates])[0]
-        slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
-        gradient_penalty = tf.reduce_mean((slopes - 1.) ** 2)
-        disc_cost += LAMBDA * gradient_penalty
+        # Add discriminator losses
+        disc_cost = real_discriminator_loss + fake_discriminator_loss
+        
+        # Calculate loss for generator by flipping label on discriminator output        
+        gen_cost = tf.reduce_mean(
+            tf.nn.sigmoid_cross_entropy_with_logits(logits=inter_layer_fake,
+                                                    labels=tf.ones_like(inter_layer_fake)))
 
         return gen_cost, disc_cost
 
@@ -252,9 +245,6 @@ class RickAndMorty(object):
 
         gen_cost, disc_cost = self.get_cost_ops(real_data, keep_prob)
 
-#         gen_params = lib.params_with_name('generator')
-#         disc_params = lib.params_with_name('discriminator')
-        
         disc_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
         gen_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
 
