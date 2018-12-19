@@ -16,7 +16,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Forces GPU
 
 DEFAULT_TRAIN_ITERS = 5000  # How many generator iterations to train for. Default 50k
 DEFAULT_FIT_EPOCHS = 1000  # How many iterations to diagnose the anomaly
-DEFAULT_Z_DIM = 128
+DEFAULT_Z_DIM = 200
 Factor_M = 0.0  # factor M
 LAMBDA_2 = 2.0  # Weight factor. Previously 0.4
 
@@ -29,6 +29,11 @@ DEFAULT_LEARN_RATE = 0.0001
 DIAGNOSIS_LEARN_RATE = 0.01
 DISC_FILTER_SIZE = 5
 
+INIT_KERNEL = tf.random_normal_initializer(mean=0.0, stddev=0.02)
+
+reuse = tf.AUTO_REUSE
+getter = None
+
 lib.print_model_settings(locals().copy())
 
 
@@ -36,6 +41,15 @@ def LeakyReLU(x, alpha=0.2):
     """ Discriminators tend to train better when using this activation function. """
     return tf.maximum(alpha * x, x)
 
+def leakyReLu(x, alpha=0.1, name=None):
+    if name:
+        with tf.variable_scope(name):
+            return _leakyReLu_impl(x, alpha)
+    else:
+        return _leakyReLu_impl(x, alpha)
+
+def _leakyReLu_impl(x, alpha):
+    return tf.nn.relu(x) - (alpha * tf.nn.relu(-x))
 
 class RickAndMorty(object):
     """
@@ -88,33 +102,66 @@ class RickAndMorty(object):
         logging.info("Model restored.")
         self.is_initialised = True
 
-    def generator(self, n_chunks, noise=None):
+    def generator(self, n_chunks, noise=None, is_training=True):
         """ Creates fake samples to mimic the normal data
 
         :param int n_chunks:
         :param noise:
         :return:
         """
-
+        
         if noise is None:
             noise = tf.random_normal([n_chunks, self.z_dim])
 
-        output = lib.ops.linear.Linear('generator.Input', self.z_dim, 4 * 4 * 4 * DIM, noise)
-        output = tf.nn.relu(output)
-        output = tf.reshape(output, [-1, 4 * DIM, 4, 4])
+        with tf.variable_scope('generator', reuse=reuse, custom_getter=getter):
 
-        output = lib.ops.deconv2d.Deconv2D('generator.2', 4 * DIM, 2 * DIM, 5, output)
-        output = tf.nn.relu(output)
+            with tf.variable_scope('layer_1'):
+                net = tf.layers.dense(noise,
+                                      units=1024,
+                                      kernel_initializer=INIT_KERNEL,
+                                      name='fc')
+                net = tf.layers.batch_normalization(net,
+                                            training=is_training,
+                                            name='batch_normalization')
+                net = tf.nn.relu(net, name='relu')
 
-        output = output[:, :, :7, :7]
+            with tf.variable_scope('layer_2'):
+                net = tf.layers.dense(net,
+                                      units=7*7*128,
+                                      kernel_initializer=INIT_KERNEL,
+                                      name='fc')
+                net = tf.layers.batch_normalization(net,
+                                            training=is_training,
+                                            name='batch_normalization')
+                net = tf.nn.relu(net, name='relu')
 
-        output = lib.ops.deconv2d.Deconv2D('generator.3', 2 * DIM, DIM, 5, output)
-        output = tf.nn.relu(output)
+            net = tf.reshape(net, [-1, 7, 7, 128])
 
-        output = lib.ops.deconv2d.Deconv2D('generator.5', DIM, 1, 5, output)
-        output = tf.nn.sigmoid(output)
+            with tf.variable_scope('layer_3'):
+                net = tf.layers.conv2d_transpose(net,
+                                         filters=64,
+                                         kernel_size=4,
+                                         strides= 2,
+                                         padding='same',
+                                         kernel_initializer=INIT_KERNEL,
+                                         name='conv')
+                net = tf.layers.batch_normalization(net,
+                                            training=is_training,
+                                            name='batch_normalization')
+                net = tf.nn.relu(net, name='relu')
 
-        return tf.reshape(output, [-1, OUTPUT_DIM])
+            with tf.variable_scope('layer_4'):
+                net = tf.layers.conv2d_transpose(net,
+                                         filters=1,
+                                         kernel_size=4,
+                                         strides=2,
+                                         padding='same',
+                                         kernel_initializer=INIT_KERNEL,
+                                         name='conv')
+                net = tf.nn.sigmoid(net, name='sigmoid')
+                net = tf.reshape(net, [-1, OUTPUT_DIM])
+
+            return net
 
     def discriminator(self, inputs, keep_prob):
         """ Decides whether the input is anomalous or not
@@ -123,35 +170,74 @@ class RickAndMorty(object):
         :param tensor keep_prob: Probability of keeping node. Set to 0.5 for training; 1 for testing
         :return: tensor, tensor: output, feature_layer
         """
+        if keep_prob == 1:
+            is_training = False
+        else:
+            is_training = True
+            
+        with tf.variable_scope('discriminator', reuse=reuse, custom_getter=getter):
 
-        output = tf.reshape(inputs, [-1, 1, 28, 28])  # 28x28 or 8x98
-        output = lib.ops.conv2d.Conv2D('discriminator.1', 1, DIM, DISC_FILTER_SIZE, output,
-                                       stride=2)  # name, input, output, filter
-        output = LeakyReLU(output)
-        output = tf.nn.dropout(output, keep_prob=keep_prob)  # adding dropout after activators
-        output = lib.ops.conv2d.Conv2D('discriminator.2', DIM, 2 * DIM, DISC_FILTER_SIZE, output, stride=2)
-        output = LeakyReLU(output)
-        output = tf.nn.dropout(output, keep_prob=keep_prob)  # adding dropout after activators
-        output = lib.ops.conv2d.Conv2D('discriminator.3', 2 * DIM, 4 * DIM, DISC_FILTER_SIZE, output, stride=2)
-        output = LeakyReLU(output)
-        output = tf.nn.dropout(output, keep_prob=keep_prob)  # adding dropout after activators
-        output2 = tf.reshape(output, [-1, 4 * 4 * 4 * DIM])  # D_
-        output = lib.ops.linear.Linear('discriminator.Output', 4 * 4 * 4 * DIM, 1, output2)  # D
-        output = tf.nn.sigmoid(output)
+            with tf.variable_scope('layer_1'):
+                net = tf.reshape(inputs, [-1, 28, 28, 1])
+                net = tf.layers.conv2d(net,
+                               filters=64,
+                               kernel_size=4,
+                               strides=2,
+                               padding='same',
+                               kernel_initializer=INIT_KERNEL,
+                               name='conv')
+                net = leakyReLu(net, 0.1, name='leaky_relu')
 
-        return tf.reshape(output, [-1]), output2
+            with tf.variable_scope('layer_2'):
+                net = tf.layers.conv2d(net,
+                               filters=64,
+                               kernel_size=4,
+                               strides=2,
+                               padding='same',
+                               kernel_initializer=INIT_KERNEL,
+                               name='conv')
+                net = tf.layers.batch_normalization(net,
+                                            training=is_training,
+                                            name='batch_normalization')
+                net = leakyReLu(net, 0.1, name='leaky_relu')
+
+            net = tf.reshape(net, [-1, 7 * 7 * 64])
+
+            with tf.variable_scope('layer_3'):
+                net = tf.layers.dense(net,
+                          units=1024,
+                          kernel_initializer=INIT_KERNEL,
+                          name='fc')
+                net = tf.layers.batch_normalization(net,
+                                        training=is_training,
+                                        name='batch_normalization')
+                net = leakyReLu(net, 0.1, name='leaky_relu')
+
+            # intermediate_layer = net
+
+            with tf.variable_scope('layer_4'):
+                net = tf.layers.dense(net,
+                                      units=1,
+                                      kernel_initializer=INIT_KERNEL,
+                                      name='fc')
+                intermediate_layer = net
+                net = tf.nn.sigmoid(net)
+
+            net = tf.squeeze(net)
+
+            return net, intermediate_layer
 
     def generate_fake_chunks(self):
         """ Save random samples from the generator to help assess its performance. """
 
         if self._plot_save_path:
-            fixed_fake_chunks = self.generator(128, noise=self.fixed_noise)
+            fixed_fake_chunks = self.generator(128, noise=self.fixed_noise, is_training=False)
             samples = self.tf_session.run(fixed_fake_chunks)
             lib.save_images.save_images(
                 samples.reshape((128, 28, 28)),
                 os.path.join(self._plot_save_path, 'fake_chunks.png')
             )
-            logging.info("Saving fake samples to png: {}".format(samples))
+            logging.info("Saving fake samples to png.")
 
     def get_cost_ops(self, real_data, keep_prob):
         """ Defines the cost functions which are used to train the discriminator and generator.
@@ -160,35 +246,28 @@ class RickAndMorty(object):
         :param keep_prob: Tensor which should hold the value of 1.0 during testing
         :return: Cost associated with the generator and discriminator.
         """
-
+        
         fake_data = self.generator(self.batch_size)
+        real_d, inter_layer_real = self.discriminator(real_data, keep_prob)
+        fake_d, inter_layer_fake = self.discriminator(fake_data, keep_prob)
 
-        disc_real, disc_real_2 = self.discriminator(real_data, keep_prob)
-        disc_real_, disc_real_2_ = self.discriminator(real_data, keep_prob)
-        disc_fake, disc_fake_ = self.discriminator(fake_data, keep_prob)
+        
+        # Calculate seperate losses for discriminator with real and fake images
+        real_discriminator_loss = tf.reduce_mean(
+            tf.nn.sigmoid_cross_entropy_with_logits(logits=inter_layer_real,
+                                                    labels=tf.ones_like(inter_layer_real)))
+        
+        fake_discriminator_loss = tf.reduce_mean(
+            tf.nn.sigmoid_cross_entropy_with_logits(logits=inter_layer_fake,
+                                                    labels=tf.zeros_like(inter_layer_fake)))
 
-        # original cost
-        gen_cost = -tf.reduce_mean(disc_fake)
-        disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
-
-        # consistency cost
-        consistency_cost = LAMBDA_2 * tf.square(disc_real - disc_real_)
-        consistency_cost += LAMBDA_2 * 0.1 * tf.reduce_mean(tf.square(disc_real_2 - disc_real_2_),
-                                                            reduction_indices=[1])
-        CT_ = tf.maximum(consistency_cost - Factor_M, 0.0 * (consistency_cost - Factor_M))
-        disc_cost += tf.reduce_mean(CT_)
-
-        alpha = tf.random_uniform(
-            shape=[self.batch_size, 1],
-            minval=0.,
-            maxval=1.
-        )
-        differences = fake_data - real_data
-        interpolates = real_data + (alpha * differences)
-        gradients = tf.gradients(self.discriminator(interpolates, keep_prob)[0], [interpolates])[0]
-        slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
-        gradient_penalty = tf.reduce_mean((slopes - 1.) ** 2)
-        disc_cost += LAMBDA * gradient_penalty
+        # Add discriminator losses
+        disc_cost = real_discriminator_loss + fake_discriminator_loss
+        
+        # Calculate loss for generator by flipping label on discriminator output        
+        gen_cost = tf.reduce_mean(
+            tf.nn.sigmoid_cross_entropy_with_logits(logits=inter_layer_fake,
+                                                    labels=tf.ones_like(inter_layer_fake)))
 
         return gen_cost, disc_cost
 
@@ -196,14 +275,15 @@ class RickAndMorty(object):
 
         gen_cost, disc_cost = self.get_cost_ops(real_data, keep_prob)
 
-        gen_params = lib.params_with_name('generator')
-        disc_params = lib.params_with_name('discriminator')
+        disc_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
+        gen_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
 
         gen_train_op = tf.train.AdamOptimizer(
             learning_rate=self.learning_rate,
             beta1=0.5,
             beta2=0.9
         ).minimize(gen_cost, var_list=gen_params)
+        
         disc_train_op = tf.train.AdamOptimizer(
             learning_rate=self.learning_rate,
             beta1=0.5,
@@ -217,7 +297,7 @@ class RickAndMorty(object):
         :return: Operator, tensor, tensor
         """
 
-        fake_sample = self.generator(noise=self.ano_z, n_chunks=1)
+        fake_sample = self.generator(noise=self.ano_z, n_chunks=1, is_training=False)
 
         anomaly_score = tf.reduce_sum(tf.abs(tf.subtract(tf.reshape(self.chunk, [-1]), tf.reshape(fake_sample, [-1]))))
         ano_z_optimiser = tf.train.AdamOptimizer(learning_rate=DIAGNOSIS_LEARN_RATE, name='ano_z_optimizer').minimize(
@@ -342,7 +422,6 @@ class RickAndMorty(object):
         :param train_sample: Data for training
         """
 
-        clip_disc_weights = None
         real_data = tf.placeholder(tf.float32, shape=[self.batch_size, self.output_dimensions])
         keep_prob = tf.placeholder(tf.float32, name='keep_prob')
 
@@ -361,7 +440,7 @@ class RickAndMorty(object):
         for iteration in range(self.train_iters):
             start_time = time.time()
 
-            if iteration % 100 == 0:
+            if iteration % 1000 == 0:
                 logging.info("Training iteration {} of {}".format(iteration, self.train_iters))
 
             if iteration > 0:
@@ -375,8 +454,6 @@ class RickAndMorty(object):
                     [disc_cost, disc_train_op],
                     feed_dict={real_data: _data, keep_prob: 0.5}
                 )
-                if clip_disc_weights is not None:
-                    _ = self.tf_session.run(clip_disc_weights)
 
             lib.plot.add_to_plot('train disc cost', _disc_cost)
             lib.plot.add_to_plot('time', time.time() - start_time)

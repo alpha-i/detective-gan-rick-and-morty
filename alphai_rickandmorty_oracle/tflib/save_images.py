@@ -10,7 +10,7 @@ from scipy.misc import imsave
 def save_images(X, save_path):
     # [0, 1] -> [0,255]
     if isinstance(X.flatten()[0], np.floating):
-        X = (255.99 * X).astype('uint8')
+        X = (255 * X).astype('uint8')
 
     n_samples = X.shape[0]
     rows = int(np.sqrt(n_samples))
