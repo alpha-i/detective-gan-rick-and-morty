@@ -207,7 +207,7 @@ class RickAndMorty(object):
                 samples.reshape((128, 11, 11)),
                 os.path.join(self._plot_save_path, 'fake_chunks.png')
             )
-            logging.info("Saving fake samples to png: {}".format(samples))
+            logging.info("Saving fake samples to png.")
 
     def get_cost_ops(self, real_data, keep_prob):
         """ Defines the cost functions which are used to train the discriminator and generator.
@@ -378,7 +378,7 @@ class RickAndMorty(object):
             input_batch[0:n_residuals] = input[-n_residuals:]
             input_batch = input_batch.reshape((self.batch_size, -1))
 
-            batch_scores = -1 * self.tf_session.run(d_output, feed_dict={x: input_batch, keep_prob: 1.})
+            batch_scores = self.tf_session.run(d_output, feed_dict={x: input_batch, keep_prob: 1.})
             detection_list.append(batch_scores[0:n_residuals])
 
         detector_results = np.concatenate(detection_list).flatten()
@@ -391,7 +391,6 @@ class RickAndMorty(object):
         :param train_sample: Data for training
         """
 
-        clip_disc_weights = None
         real_data = tf.placeholder(tf.float32, shape=[self.batch_size, self.output_dimensions])
         keep_prob = tf.placeholder(tf.float32, name='keep_prob')
 
@@ -414,7 +413,9 @@ class RickAndMorty(object):
                 logging.info("Training iteration {} of {}".format(iteration, self.train_iters))
 
             if iteration > 0:
-                _ = self.tf_session.run(gen_train_op, feed_dict={keep_prob: 0.5})
+                _gen_cost, _ = self.tf_session.run([gen_cost, gen_train_op], feed_dict={keep_prob: 0.5})
+                lib.plot.add_to_plot('train gen cost', _gen_cost)
+
 
             disc_iters = CRITIC_ITERS
             for i in range(disc_iters):
@@ -424,8 +425,6 @@ class RickAndMorty(object):
                     [disc_cost, disc_train_op],
                     feed_dict={real_data: _data, keep_prob: 0.5}
                 )
-                if clip_disc_weights is not None:
-                    _ = self.tf_session.run(clip_disc_weights)
 
             lib.plot.add_to_plot('train disc cost', _disc_cost)
             lib.plot.add_to_plot('time', time.time() - start_time)
