@@ -7,6 +7,7 @@ from alphai_watson.performance import GANPerformanceAnalysis
 from alphai_watson.transformer import NullTransformer
 
 from alphai_rickandmorty_oracle.detective import RickAndMortyDetective
+from alphai_rickandmorty_oracle.model_brainwaves import RickAndMorty
 
 RESOURCES_PATH = os.path.join(os.path.dirname(__file__), '..', 'resources')
 
@@ -21,11 +22,18 @@ def test_rm_train_in_detective_wrap():
         transformer=NullTransformer(number_of_timesteps=n_timesteps, number_of_sensors=n_sensors))
 
     train_data = train_data_source.get_train_data('NORMAL')
+    
+    model = RickAndMorty(batch_size=64,
+                         output_dimensions=784,
+                         train_iters=1)
+
     detective = RickAndMortyDetective(model_configuration={
+        'model': model
         'batch_size': 64,
         'output_dimensions': 784,
         'train_iters': 1,
     })
+    
     detective.train(train_data)
 
 
@@ -47,8 +55,17 @@ def test_rm_detect_in_detective_wrap():
 
     train_sample = train_data_source.get_train_data('NORMAL')
 
-    detective = RickAndMortyDetective(model_configuration={})
-
+    model = RickAndMorty(batch_size=64,
+                         output_dimensions=784,
+                         train_iters=1)
+    
+    detective = RickAndMortyDetective(model_configuration={
+        'model': model
+        'batch_size': 64,
+        'output_dimensions': 784,
+        'train_iters': 1,
+    })
+    
     detective.train(train_sample)
 
     normal_samples = [sample for sample in test_data_source.get_test_data('NORMAL')]
