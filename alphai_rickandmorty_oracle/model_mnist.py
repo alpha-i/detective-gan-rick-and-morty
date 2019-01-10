@@ -37,19 +37,17 @@ getter = None
 lib.print_model_settings(locals().copy())
 
 
-def LeakyReLU(x, alpha=0.2):
-    """ Discriminators tend to train better when using this activation function. """
-    return tf.maximum(alpha * x, x)
-
-def leakyReLu(x, alpha=0.1, name=None):
+def LeakyReLU(x, alpha=0.1, name=None):
     if name:
         with tf.variable_scope(name):
             return _leakyReLu_impl(x, alpha)
     else:
         return _leakyReLu_impl(x, alpha)
 
+
 def _leakyReLu_impl(x, alpha):
     return tf.nn.relu(x) - (alpha * tf.nn.relu(-x))
+
 
 class RickAndMorty(object):
     """
@@ -186,7 +184,7 @@ class RickAndMorty(object):
                                padding='same',
                                kernel_initializer=INIT_KERNEL,
                                name='conv')
-                net = leakyReLu(net, 0.1, name='leaky_relu')
+                net = LeakyReLU(net, 0.1, name='leaky_relu')
 
             with tf.variable_scope('layer_2'):
                 net = tf.layers.conv2d(net,
@@ -199,7 +197,7 @@ class RickAndMorty(object):
                 net = tf.layers.batch_normalization(net,
                                             training=is_training,
                                             name='batch_normalization')
-                net = leakyReLu(net, 0.1, name='leaky_relu')
+                net = LeakyReLU(net, 0.1, name='leaky_relu')
 
             net = tf.reshape(net, [-1, 7 * 7 * 64])
 
@@ -211,7 +209,7 @@ class RickAndMorty(object):
                 net = tf.layers.batch_normalization(net,
                                         training=is_training,
                                         name='batch_normalization')
-                net = leakyReLu(net, 0.1, name='leaky_relu')
+                net = LeakyReLU(net, 0.1, name='leaky_relu')
 
             # intermediate_layer = net
 
