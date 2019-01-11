@@ -218,7 +218,6 @@ class RickAndMorty(object):
         real_d, inter_layer_real = self.discriminator(real_data, keep_prob)
         fake_d, inter_layer_fake = self.discriminator(fake_data, keep_prob)
 
-        
         # Calculate seperate losses for discriminator with real and fake images
         real_discriminator_loss = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(logits=inter_layer_real,
@@ -412,7 +411,6 @@ class RickAndMorty(object):
             if iteration > 0:
                 _gen_cost, _ = self.tf_session.run([gen_cost, gen_train_op], feed_dict={keep_prob: 0.5})
                 lib.plot.add_to_plot('train gen cost', _gen_cost)
-
 
             disc_iters = CRITIC_ITERS
             for i in range(disc_iters):

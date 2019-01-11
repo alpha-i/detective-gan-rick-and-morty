@@ -364,7 +364,7 @@ class RickAndMorty(object):
                 logging.info("Training iteration {} of {}".format(iteration, self.train_iters))
 
             if iteration > 0:
-                _gen_cost, _ = self.tf_session.run(gen_train_op, feed_dict={keep_prob: 0.5})
+                _gen_cost, _ = self.tf_session.run([gen_cost, gen_train_op], feed_dict={keep_prob: 0.5})
                 lib.plot.add_to_plot('train gen cost', _gen_cost)
 
             disc_iters = CRITIC_ITERS
@@ -383,7 +383,7 @@ class RickAndMorty(object):
 
             # Calculate dev loss and generate samples every 100 iters
             if iteration % 100 == 99:
-                self.generate_fake_chunks(iteration)
+                self.generate_fake_chunks()
 
             # Write logs every 100 iters
             if ((iteration < 5) or (iteration % 100 == 99)) and self._plot_save_path:
