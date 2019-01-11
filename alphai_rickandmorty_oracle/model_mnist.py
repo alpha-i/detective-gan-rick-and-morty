@@ -442,7 +442,7 @@ class RickAndMorty(object):
                 logging.info("Training iteration {} of {}".format(iteration, self.train_iters))
 
             if iteration > 0:
-                _gen_cost, _ = self.tf_session.run(gen_train_op, feed_dict={keep_prob: 0.5})
+                _gen_cost, _ = self.tf_session.run([gen_cost, gen_train_op], feed_dict={keep_prob: 0.5})
                 lib.plot.add_to_plot('train gen cost', _gen_cost)
 
             disc_iters = CRITIC_ITERS
