@@ -229,13 +229,16 @@ class RickAndMorty(object):
         """ Save random samples from the generator to help assess its performance. """
 
         if self._plot_save_path:
-            fixed_fake_chunks = self.generator(128, noise=self.fixed_noise, is_training=False)
-            samples = self.tf_session.run(fixed_fake_chunks)
             lib.save_images.save_images(
-                samples.reshape((128, 28, 28)),
+                self.fake_chunks_image(),
                 os.path.join(self._plot_save_path, 'fake_chunks.png')
             )
-            logging.info("Saving fake samples to png.")
+
+    def fake_chunks_image(self):
+        """ Generate random samples from the generator. """
+        fixed_fake_chunks = self.generator(128, noise=self.fixed_noise, is_training=False)
+        samples = self.tf_session.run(fixed_fake_chunks)
+        return samples.reshape((128, 28, 28))
 
     def get_cost_ops(self, real_data, keep_prob):
         """ Defines the cost functions which are used to train the discriminator and generator.
