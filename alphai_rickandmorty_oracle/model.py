@@ -6,9 +6,6 @@ import numpy as np
 import tensorflow as tf
 
 import alphai_rickandmorty_oracle.tflib as lib
-import alphai_rickandmorty_oracle.tflib.ops.linear
-import alphai_rickandmorty_oracle.tflib.ops.conv2d
-import alphai_rickandmorty_oracle.tflib.ops.deconv2d
 import alphai_rickandmorty_oracle.tflib.save_images
 import alphai_rickandmorty_oracle.tflib.plot
 
@@ -16,7 +13,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Forces GPU
 
 DEFAULT_TRAIN_ITERS = 5000  # How many generator iterations to train for. Default 50k
 DEFAULT_FIT_EPOCHS = 1000  # How many iterations to diagnose the anomaly
-DEFAULT_Z_DIM = 128
+DEFAULT_Z_DIM = 200
 Factor_M = 0.0  # factor M
 LAMBDA_2 = 2.0  # Weight factor. Previously 0.4
 
@@ -24,40 +21,48 @@ DIM = 64  # Model dimensionality
 BATCH_SIZE = 50  # Batch size
 CRITIC_ITERS = 5  # Number of critic iters per gen iter
 LAMBDA = 10  # Gradient penalty lambda hyperparameter
-OUTPUT_DIM = 784  # Number of pixels in MNIST (28*28)
 DEFAULT_LEARN_RATE = 0.0001
 DIAGNOSIS_LEARN_RATE = 0.01
 DISC_FILTER_SIZE = 5
 
+INIT_KERNEL = tf.random_normal_initializer(mean=0.0, stddev=0.02)
+
+reuse = tf.AUTO_REUSE
+getter = None
+
 lib.print_model_settings(locals().copy())
-
-
-def LeakyReLU(x, alpha=0.2):
-    """ Discriminators tend to train better when using this activation function. """
-    return tf.maximum(alpha * x, x)
 
 
 class RickAndMorty(object):
     """
     Implementation of GAN neural network
     """
-    def __init__(self, batch_size=BATCH_SIZE, output_dimensions=OUTPUT_DIM, learning_rate=DEFAULT_LEARN_RATE,
-                 train_iters=DEFAULT_TRAIN_ITERS, z_dim=DEFAULT_Z_DIM, plot_save_path=None, load_path=None):
+    def __init__(self, generator_network, discriminator_network, output_dimensions, plot_dimensions,
+                 batch_size=BATCH_SIZE, learning_rate=DEFAULT_LEARN_RATE, train_iters=DEFAULT_TRAIN_ITERS,
+                 z_dim=DEFAULT_Z_DIM, plot_save_path=None, load_path=None):
         """ Generative model which primarily consists of a generator and discriminator.
 
-        :param int batch_size:
+        :param generator_network:
+        :param discriminator_network:
         :param output_dimensions:
+        :param plot_dimensions:
+        :param int batch_size:
         :param learning_rate: Learning rate
         :param train_iters: Number of training iterations
         :param z_dim: Size of random number entering generator
         """
 
-        self.fixed_noise = tf.constant(np.random.normal(size=(128, 128)).astype('float32'))
+        self.generator_network = generator_network
+        self.discriminator_network = discriminator_network
+
+        self.fixed_noise = tf.constant(np.random.normal(size=(128, z_dim)).astype('float32'))
         self.z_dim = z_dim
         self.saver = None
         self.is_initialised = False
-        self.batch_size = batch_size
+
         self.output_dimensions = output_dimensions
+        self.plot_dimensions = plot_dimensions
+        self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.train_iters = train_iters
         self.load_path = load_path
@@ -67,7 +72,7 @@ class RickAndMorty(object):
 
         z_init = tf.random_uniform_initializer(minval=-1, maxval=1, dtype=tf.float32)
         self.ano_z = tf.get_variable('ano_z', shape=[1, self.z_dim], dtype=tf.float32, initializer=z_init)
-        self.chunk = tf.placeholder(tf.float32, shape=[1, self.output_dimensions])
+        self.sample = tf.placeholder(tf.float32, shape=[1, self.output_dimensions])
         self.ano_z_optimiser, self.anomaly_score, self.fake_sample = self._build_diagnosis_tools()
 
     def __del__(self):
@@ -88,121 +93,90 @@ class RickAndMorty(object):
         logging.info("Model restored.")
         self.is_initialised = True
 
-    def generator(self, n_chunks, noise=None):
+    def generator(self, n_samples, noise=None, is_training=True):
         """ Creates fake samples to mimic the normal data
 
-        :param int n_chunks:
+        :param int n_samples:
         :param noise:
+        :param is_training:
         :return:
         """
-
+        
         if noise is None:
-            noise = tf.random_normal([n_chunks, self.z_dim])
+            noise = tf.random_normal([n_samples, self.z_dim])
 
-        output = lib.ops.linear.Linear('generator.Input', self.z_dim, 4 * 4 * 4 * DIM, noise)
-        output = tf.nn.relu(output)
-        output = tf.reshape(output, [-1, 4 * DIM, 4, 4])
+        with tf.variable_scope('generator', reuse=reuse, custom_getter=getter):
+            return self.generator_network(noise, is_training)
 
-        output = lib.ops.deconv2d.Deconv2D('generator.2', 4 * DIM, 2 * DIM, 5, output)
-        output = tf.nn.relu(output)
-
-        output = output[:, :, :7, :7]
-
-        output = lib.ops.deconv2d.Deconv2D('generator.3', 2 * DIM, DIM, 5, output)
-        output = tf.nn.relu(output)
-
-        output = lib.ops.deconv2d.Deconv2D('generator.5', DIM, 1, 5, output)
-        output = tf.nn.sigmoid(output)
-
-        return tf.reshape(output, [-1, OUTPUT_DIM])
-
-    def discriminator(self, inputs, keep_prob):
+    def discriminator(self, inputs, is_training):
         """ Decides whether the input is anomalous or not
 
         :param tensor inputs:
-        :param tensor keep_prob: Probability of keeping node. Set to 0.5 for training; 1 for testing
+        :param is_training:
         :return: tensor, tensor: output, feature_layer
         """
+        with tf.variable_scope('discriminator', reuse=reuse, custom_getter=getter):
+            return self.discriminator_network(inputs, is_training)
 
-        output = tf.reshape(inputs, [-1, 1, 28, 28])  # 28x28 or 8x98
-        output = lib.ops.conv2d.Conv2D('discriminator.1', 1, DIM, DISC_FILTER_SIZE, output,
-                                       stride=2)  # name, input, output, filter
-        output = LeakyReLU(output)
-        output = tf.nn.dropout(output, keep_prob=keep_prob)  # adding dropout after activators
-        output = lib.ops.conv2d.Conv2D('discriminator.2', DIM, 2 * DIM, DISC_FILTER_SIZE, output, stride=2)
-        output = LeakyReLU(output)
-        output = tf.nn.dropout(output, keep_prob=keep_prob)  # adding dropout after activators
-        output = lib.ops.conv2d.Conv2D('discriminator.3', 2 * DIM, 4 * DIM, DISC_FILTER_SIZE, output, stride=2)
-        output = LeakyReLU(output)
-        output = tf.nn.dropout(output, keep_prob=keep_prob)  # adding dropout after activators
-        output2 = tf.reshape(output, [-1, 4 * 4 * 4 * DIM])  # D_
-        output = lib.ops.linear.Linear('discriminator.Output', 4 * 4 * 4 * DIM, 1, output2)  # D
-
-        return tf.reshape(output, [-1]), output2
-
-    def generate_fake_chunks(self):
+    def save_plot_fake_samples(self):
         """ Save random samples from the generator to help assess its performance. """
 
         if self._plot_save_path:
-            fixed_fake_chunks = self.generator(128, noise=self.fixed_noise)
-            samples = self.tf_session.run(fixed_fake_chunks)
             lib.save_images.save_images(
-                samples.reshape((128, 28, 28)),
-                os.path.join(self._plot_save_path, 'fake_chunks.png')
+                self.generate_fake_samples(),
+                os.path.join(self._plot_save_path, 'fake_samples.png')
             )
-            logging.info("Saving fake samples to png: {}".format(samples))
 
-    def get_cost_ops(self, real_data, keep_prob):
+    def generate_fake_samples(self):
+        """ Generate random samples from the generator. """
+        fixed_fake_samples = self.generator(128, noise=self.fixed_noise, is_training=False)
+        samples = self.tf_session.run(fixed_fake_samples)
+        return samples.reshape((128,) + self.plot_dimensions)
+
+    def get_cost_ops(self, real_data, is_training):
         """ Defines the cost functions which are used to train the discriminator and generator.
 
         :param real_data: To be fed into discriminator
-        :param keep_prob: Tensor which should hold the value of 1.0 during testing
+        :param is_training: Boolean describing training status
         :return: Cost associated with the generator and discriminator.
         """
-
+        
         fake_data = self.generator(self.batch_size)
+        real_d, inter_layer_real = self.discriminator(real_data, is_training)
+        fake_d, inter_layer_fake = self.discriminator(fake_data, is_training)
 
-        disc_real, disc_real_2 = self.discriminator(real_data, keep_prob)
-        disc_real_, disc_real_2_ = self.discriminator(real_data, keep_prob)
-        disc_fake, disc_fake_ = self.discriminator(fake_data, keep_prob)
+        # Calculate seperate losses for discriminator with real and fake images
+        real_discriminator_loss = tf.reduce_mean(
+            tf.nn.sigmoid_cross_entropy_with_logits(logits=inter_layer_real,
+                                                    labels=tf.ones_like(inter_layer_real)))
+        
+        fake_discriminator_loss = tf.reduce_mean(
+            tf.nn.sigmoid_cross_entropy_with_logits(logits=inter_layer_fake,
+                                                    labels=tf.zeros_like(inter_layer_fake)))
 
-        # original cost
-        gen_cost = -tf.reduce_mean(disc_fake)
-        disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
-
-        # consistency cost
-        consistency_cost = LAMBDA_2 * tf.square(disc_real - disc_real_)
-        consistency_cost += LAMBDA_2 * 0.1 * tf.reduce_mean(tf.square(disc_real_2 - disc_real_2_),
-                                                            reduction_indices=[1])
-        CT_ = tf.maximum(consistency_cost - Factor_M, 0.0 * (consistency_cost - Factor_M))
-        disc_cost += tf.reduce_mean(CT_)
-
-        alpha = tf.random_uniform(
-            shape=[self.batch_size, 1],
-            minval=0.,
-            maxval=1.
-        )
-        differences = fake_data - real_data
-        interpolates = real_data + (alpha * differences)
-        gradients = tf.gradients(self.discriminator(interpolates, keep_prob)[0], [interpolates])[0]
-        slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
-        gradient_penalty = tf.reduce_mean((slopes - 1.) ** 2)
-        disc_cost += LAMBDA * gradient_penalty
+        # Add discriminator losses
+        disc_cost = real_discriminator_loss + fake_discriminator_loss
+        
+        # Calculate loss for generator by flipping label on discriminator output        
+        gen_cost = tf.reduce_mean(
+            tf.nn.sigmoid_cross_entropy_with_logits(logits=inter_layer_fake,
+                                                    labels=tf.ones_like(inter_layer_fake)))
 
         return gen_cost, disc_cost
 
-    def get_training_ops(self, real_data, keep_prob):
+    def get_training_ops(self, real_data, is_training):
 
-        gen_cost, disc_cost = self.get_cost_ops(real_data, keep_prob)
+        gen_cost, disc_cost = self.get_cost_ops(real_data, is_training)
 
-        gen_params = lib.params_with_name('generator')
-        disc_params = lib.params_with_name('discriminator')
+        disc_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
+        gen_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
 
         gen_train_op = tf.train.AdamOptimizer(
             learning_rate=self.learning_rate,
             beta1=0.5,
             beta2=0.9
         ).minimize(gen_cost, var_list=gen_params)
+        
         disc_train_op = tf.train.AdamOptimizer(
             learning_rate=self.learning_rate,
             beta1=0.5,
@@ -216,9 +190,9 @@ class RickAndMorty(object):
         :return: Operator, tensor, tensor
         """
 
-        fake_sample = self.generator(noise=self.ano_z, n_chunks=1)
+        fake_sample = self.generator(noise=self.ano_z, n_samples=1, is_training=False)
 
-        anomaly_score = tf.reduce_sum(tf.abs(tf.subtract(tf.reshape(self.chunk, [-1]), tf.reshape(fake_sample, [-1]))))
+        anomaly_score = tf.reduce_sum(tf.abs(tf.subtract(tf.reshape(self.sample, [-1]), tf.reshape(fake_sample, [-1]))))
         ano_z_optimiser = tf.train.AdamOptimizer(learning_rate=DIAGNOSIS_LEARN_RATE, name='ano_z_optimizer').minimize(
             anomaly_score, var_list=self.ano_z)
         # self.learning_rate
@@ -231,12 +205,12 @@ class RickAndMorty(object):
         self.tf_session.run(tf.global_variables_initializer())
         self.is_initialised = True
 
-    def find_closest_synthetic_chunk(self, chunk, n_fit_epochs=DEFAULT_FIT_EPOCHS):
-        """ Finds the closest generated chunk to the input data. Useful for highlighting the anomaly.
+    def find_closest_synthetic_sample(self, sample, n_fit_epochs=DEFAULT_FIT_EPOCHS):
+        """ Finds the closest generated sample to the input data. Useful for highlighting the anomaly.
 
-        :param chunk: The piece of data we wish to mimic
-        :param n_fit_epochs: How many iterations we use to seek the best fit chunk
-        :return: ndarray representing the generator's best impersonation of the chunk
+        :param sample: The piece of data we wish to mimic
+        :param n_fit_epochs: How many iterations we use to seek the best fit sample
+        :return: ndarray representing the generator's best impersonation of the sample
         """
 
         logging.info("Searching for closest synthetic sample")
@@ -250,19 +224,19 @@ class RickAndMorty(object):
         if not self.is_initialised:
             self._initialise_model()
 
-        logging.info("Training synthetic chunk.")
+        logging.info("Training synthetic sample.")
         for epoch in range(n_fit_epochs):
-            ano_z, _, ano_score, best_fit_chunk = self.tf_session.run(
+            ano_z, _, ano_score, best_fit_sample = self.tf_session.run(
                 [self.ano_z, self.ano_z_optimiser, self.anomaly_score, self.fake_sample],
-                feed_dict={self.chunk: chunk.reshape([1, -1])})
+                feed_dict={self.sample: sample.reshape([1, -1])})
 
-        best_fit_chunk = self.tf_session.run(self.fake_sample)
+        best_fit_sample = self.tf_session.run(self.fake_sample)
 
-        anomaly = chunk.flatten() - best_fit_chunk.flatten()
+        anomaly = sample.flatten() - best_fit_sample.flatten()
         anomaly_rms = np.std(anomaly)
         logging.info("Synthetic training procedure complete. Anomaly rms of {}".format(ano_z, anomaly_rms))
 
-        return best_fit_chunk
+        return best_fit_sample
 
     def _calculate_anomaly_score(self, input, ano_gen, ano_z, discriminator_fraction=0.1):
         """ TODO: Returns a detection based on a convex combination of discriminator and generator.
@@ -288,9 +262,9 @@ class RickAndMorty(object):
         """
 
         x = tf.placeholder(tf.float32, shape=[self.batch_size, self.output_dimensions])
-        keep_prob = tf.placeholder(tf.float32, name='keep_prob')
+        is_training = tf.placeholder(tf.bool, name='is_training')
 
-        d_output, _ = self.discriminator(x, keep_prob)
+        d_output, _ = self.discriminator(x, is_training)
 
         if self.load_path:  # Load model values if needed
             try:
@@ -311,10 +285,8 @@ class RickAndMorty(object):
             hi = lo + self.batch_size
             input_batch = input[lo:hi]
             input_batch = input_batch.reshape((self.batch_size, -1))
-            # d_output = tf.sigmoid(d_output)
 
-            # keep prob is 1 for testing; 0.5 for training
-            batch_scores = -1 * self.tf_session.run(d_output, feed_dict={x: input_batch, keep_prob: 1.})
+            batch_scores = self.tf_session.run(d_output, feed_dict={x: input_batch, is_training: False})
 
             detection_list.append(batch_scores)
 
@@ -328,7 +300,7 @@ class RickAndMorty(object):
             input_batch[0:n_residuals] = input[-n_residuals:]
             input_batch = input_batch.reshape((self.batch_size, -1))
 
-            batch_scores = -1 * self.tf_session.run(d_output, feed_dict={x: input_batch, keep_prob: 1.})
+            batch_scores = self.tf_session.run(d_output, feed_dict={x: input_batch, is_training: False})
             detection_list.append(batch_scores[0:n_residuals])
 
         detector_results = np.concatenate(detection_list).flatten()
@@ -341,12 +313,11 @@ class RickAndMorty(object):
         :param train_sample: Data for training
         """
 
-        clip_disc_weights = None
         real_data = tf.placeholder(tf.float32, shape=[self.batch_size, self.output_dimensions])
-        keep_prob = tf.placeholder(tf.float32, name='keep_prob')
+        is_training = tf.placeholder(tf.bool, name='is_training')
 
-        gen_cost, disc_cost = self.get_cost_ops(real_data, keep_prob)
-        gen_train_op, disc_train_op = self.get_training_ops(real_data, keep_prob)
+        gen_cost, disc_cost = self.get_cost_ops(real_data, is_training)
+        gen_train_op, disc_train_op = self.get_training_ops(real_data, is_training)
 
         logging.debug("Start training loop...")
         random_batch_generator = train_sample.get_infinite_random_batch_generator(self.batch_size, strict=True)
@@ -360,11 +331,12 @@ class RickAndMorty(object):
         for iteration in range(self.train_iters):
             start_time = time.time()
 
-            if iteration % 100 == 0:
+            if iteration % 1000 == 0:
                 logging.info("Training iteration {} of {}".format(iteration, self.train_iters))
 
             if iteration > 0:
-                _ = self.tf_session.run(gen_train_op, feed_dict={keep_prob: 0.5})
+                _gen_cost, _ = self.tf_session.run([gen_cost, gen_train_op], feed_dict={is_training: True})
+                lib.plot.add_to_plot('train gen cost', _gen_cost)
 
             disc_iters = CRITIC_ITERS
             for i in range(disc_iters):
@@ -372,17 +344,15 @@ class RickAndMorty(object):
                 _data = _data.reshape((self.batch_size, -1))
                 _disc_cost, _ = self.tf_session.run(
                     [disc_cost, disc_train_op],
-                    feed_dict={real_data: _data, keep_prob: 0.5}
+                    feed_dict={real_data: _data, is_training: True}
                 )
-                if clip_disc_weights is not None:
-                    _ = self.tf_session.run(clip_disc_weights)
 
             lib.plot.add_to_plot('train disc cost', _disc_cost)
             lib.plot.add_to_plot('time', time.time() - start_time)
 
             # Calculate dev loss and generate samples every 100 iters
             if iteration % 100 == 99:
-                self.generate_fake_chunks(iteration)
+                self.save_plot_fake_samples()
 
             # Write logs every 100 iters
             if ((iteration < 5) or (iteration % 100 == 99)) and self._plot_save_path:
