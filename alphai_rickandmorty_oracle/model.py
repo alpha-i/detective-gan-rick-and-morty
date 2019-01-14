@@ -30,32 +30,25 @@ class RickAndMorty(object):
     """
     Implementation of GAN neural network
     """
-    def __init__(self, generator_network, discriminator_network, output_dimensions, plot_dimensions,
-                 batch_size=BATCH_SIZE, learning_rate=DEFAULT_LEARN_RATE, train_iters=DEFAULT_TRAIN_ITERS,
-                 z_dim=DEFAULT_Z_DIM, plot_save_path=None, load_path=None):
+    def __init__(self, architecture, batch_size=BATCH_SIZE, learning_rate=DEFAULT_LEARN_RATE,
+                 train_iters=DEFAULT_TRAIN_ITERS, z_dim=DEFAULT_Z_DIM, plot_save_path=None, load_path=None):
 
         """ Generative model which primarily consists of a generator and discriminator.
 
-        :param generator_network:
-        :param discriminator_network:
-        :param output_dimensions:
-        :param plot_dimensions:
+        :param architecture:
         :param int batch_size:
         :param learning_rate: Learning rate
         :param train_iters: Number of training iterations
         :param z_dim: Size of random number entering generator
         """
 
-        self.generator_network = generator_network
-        self.discriminator_network = discriminator_network
+        self.architecture = architecture
 
         self.fixed_noise = tf.constant(np.random.normal(size=(128, z_dim)).astype('float32'))
         self.z_dim = z_dim
         self.saver = None
         self.is_initialised = False
 
-        self.output_dimensions = output_dimensions
-        self.plot_dimensions = plot_dimensions
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.train_iters = train_iters
@@ -66,7 +59,7 @@ class RickAndMorty(object):
 
         z_init = tf.random_uniform_initializer(minval=-1, maxval=1, dtype=tf.float32)
         self.ano_z = tf.get_variable('ano_z', shape=[1, self.z_dim], dtype=tf.float32, initializer=z_init)
-        self.sample = tf.placeholder(tf.float32, shape=[1, self.output_dimensions])
+        self.sample = tf.placeholder(tf.float32, shape=[1, self.architecture.output_dimensions])
         self.ano_z_optimiser, self.anomaly_score, self.fake_sample = self._build_diagnosis_tools()
 
     def __del__(self):
@@ -100,7 +93,7 @@ class RickAndMorty(object):
             noise = tf.random_normal([n_samples, self.z_dim])
 
         with tf.variable_scope('generator', reuse=reuse, custom_getter=getter):
-            return self.generator_network(noise, is_training)
+            return self.architecture.generator_network(noise, is_training)
 
     def discriminator(self, inputs, is_training):
         """ Decides whether the input is anomalous or not
@@ -110,7 +103,7 @@ class RickAndMorty(object):
         :return: tensor, tensor: output, feature_layer
         """
         with tf.variable_scope('discriminator', reuse=reuse, custom_getter=getter):
-            return self.discriminator_network(inputs, is_training)
+            return self.architecture.discriminator_network(inputs, is_training)
 
     def save_plot_fake_samples(self):
         """ Save random samples from the generator to help assess its performance. """
@@ -125,7 +118,7 @@ class RickAndMorty(object):
         """ Generate random samples from the generator. """
         fixed_fake_samples = self.generator(128, noise=self.fixed_noise, is_training=False)
         samples = self.tf_session.run(fixed_fake_samples)
-        return samples.reshape((128,) + self.plot_dimensions)
+        return samples.reshape((128,) + self.architecture.plot_dimensions)
 
     def get_cost_ops(self, real_data, is_training):
         """ Defines the cost functions which are used to train the discriminator and generator.
@@ -255,7 +248,7 @@ class RickAndMorty(object):
         :return: nparray Probabilities p(sample is real) (if use_softmax=True; logits if False)
         """
 
-        x = tf.placeholder(tf.float32, shape=[self.batch_size, self.output_dimensions])
+        x = tf.placeholder(tf.float32, shape=[self.batch_size, self.architecture.output_dimensions])
         is_training = tf.placeholder(tf.bool, name='is_training')
 
         d_output, _ = self.discriminator(x, is_training)
@@ -290,7 +283,7 @@ class RickAndMorty(object):
             if len(input.shape) == 3:  # is a multivariate case
                 input_batch = np.zeros((self.batch_size, input.shape[1], input.shape[2]))
             elif len(input.shape) == 2:  # is a monovariate case
-                input_batch = np.zeros((self.batch_size, self.output_dimensions))
+                input_batch = np.zeros((self.batch_size, self.architecture.output_dimensions))
             input_batch[0:n_residuals] = input[-n_residuals:]
             input_batch = input_batch.reshape((self.batch_size, -1))
 
@@ -307,7 +300,7 @@ class RickAndMorty(object):
         :param train_sample: Data for training
         """
 
-        real_data = tf.placeholder(tf.float32, shape=[self.batch_size, self.output_dimensions])
+        real_data = tf.placeholder(tf.float32, shape=[self.batch_size, self.architecture.output_dimensions])
         is_training = tf.placeholder(tf.bool, name='is_training')
 
         gen_cost, disc_cost = self.get_cost_ops(real_data, is_training)
