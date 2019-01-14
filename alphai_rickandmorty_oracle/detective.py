@@ -5,8 +5,6 @@ import numpy as np
 from alphai_watson.datasource import Sample
 from alphai_watson.detective import AbstractDetective, DetectionResult
 
-from alphai_rickandmorty_oracle.model import RickAndMorty
-
 DEFAULT_TRAIN_ITERS = 1  # 50k takes 3 hours
 ITERATIONS_PER_TEST = 10000  # 1000
 N_TIMESTEPS = 392  # Larger input to network, but perhaps helps training if more data per batch
@@ -43,6 +41,7 @@ class RickAndMortyDetective(AbstractDetective):
         plot_save_path = model_configuration.get('plot_save_path')
         load_path = model_configuration.get('load_path')
         save_path = model_configuration.get('save_path')
+        model = model_configuration.get('model')
 
         self._config = dict(
             batch_size=batch_size,
@@ -50,8 +49,11 @@ class RickAndMortyDetective(AbstractDetective):
             train_iters=train_iters,
             plot_save_path=plot_save_path
         )
-        self.model = RickAndMorty(batch_size=batch_size, output_dimensions=output_dimensions, train_iters=train_iters,
-                                  plot_save_path=plot_save_path, load_path=load_path)
+        
+        # self.model = RickAndMorty(batch_size=batch_size, output_dimensions=output_dimensions, train_iters=train_iters,
+        #                           plot_save_path=plot_save_path, load_path=load_path)
+        self.model = model
+        
         self.save_path = save_path
         self.load_path = load_path
 
