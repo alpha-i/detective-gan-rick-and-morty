@@ -62,12 +62,9 @@ class TestDetectiveKDDCup99(TestCase):
         batch_size = 64
         train_iters = 1000
 
-        gan_architecture = KDDCup99GanArchitecture(output_dimensions, plot_dimensions)
+        architecture = KDDCup99GanArchitecture(output_dimensions, plot_dimensions)
 
-        model = RickAndMorty(generator_network=gan_architecture.generator_network,
-                             discriminator_network=gan_architecture.discriminator_network,
-                             output_dimensions=gan_architecture.output_dimensions,
-                             plot_dimensions=gan_architecture.plot_dimensions,
+        model = RickAndMorty(architecture=architecture,
                              batch_size=batch_size,
                              train_iters=train_iters,
                              plot_save_path=self.output_path)
@@ -75,7 +72,7 @@ class TestDetectiveKDDCup99(TestCase):
         detective = RickAndMortyDetective(model_configuration={
             'model': model,
             'batch_size': model.batch_size,
-            'output_dimensions': model.output_dimensions,
+            'output_dimensions': model.architecture.output_dimensions,
             'train_iters': model.train_iters,
             'plot_save_path': self.output_path
         })
