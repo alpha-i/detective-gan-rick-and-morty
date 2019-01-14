@@ -13,10 +13,7 @@ from alphai_rickandmorty_oracle.datasource.brainwaves import BrainwavesDataSourc
 from alphai_rickandmorty_oracle.detective import RickAndMortyDetective
 from alphai_rickandmorty_oracle.model import RickAndMorty
 
-from alphai_rickandmorty_oracle.networks.brainwaves import (
-    brainwaves_generator_network,
-    brainwaves_discriminator_network
-)
+from alphai_rickandmorty_oracle.networks.brainwaves import BrainwavesGanArchitecture
 
 from tests.helpers import assert_train_files_exist
 
@@ -74,10 +71,12 @@ class TestDetectiveBrainwaves(TestCase):
         train_iters = 1000
         z_dim = 128
 
-        model = RickAndMorty(generator_network=brainwaves_generator_network,
-                             discriminator_network=brainwaves_discriminator_network,
-                             output_dimensions=output_dimensions,
-                             plot_dimensions=plot_dimensions,
+        gan_architecture = BrainwavesGanArchitecture(output_dimensions, plot_dimensions)
+
+        model = RickAndMorty(generator_network=gan_architecture.generator_network,
+                             discriminator_network=gan_architecture.discriminator_network,
+                             output_dimensions=gan_architecture.output_dimensions,
+                             plot_dimensions=gan_architecture.plot_dimensions,
                              batch_size=batch_size,
                              train_iters=train_iters,
                              z_dim=z_dim,
@@ -85,9 +84,9 @@ class TestDetectiveBrainwaves(TestCase):
 
         detective = RickAndMortyDetective(model_configuration={
             'model': model,
-            'batch_size': batch_size,
-            'output_dimensions': output_dimensions,
-            'train_iters': train_iters,
+            'batch_size': model.batch_size,
+            'output_dimensions': model.output_dimensions,
+            'train_iters': model.train_iters,
             'plot_save_path': self.output_path
         })
 

@@ -12,7 +12,7 @@ from alphai_watson.transformer import NullTransformer
 from alphai_rickandmorty_oracle.datasource.kddcup99 import KDDCup99DataSource
 from alphai_rickandmorty_oracle.detective import RickAndMortyDetective
 from alphai_rickandmorty_oracle.model import RickAndMorty
-from alphai_rickandmorty_oracle.networks.kddcup99 import kddcup99_generator_network, kddcup99_discriminator_network
+from alphai_rickandmorty_oracle.networks.kddcup99 import KDDCup99GanArchitecture
 
 from tests.helpers import assert_train_files_exist
 
@@ -62,19 +62,21 @@ class TestDetectiveKDDCup99(TestCase):
         batch_size = 64
         train_iters = 1000
 
-        model = RickAndMorty(generator_network=kddcup99_generator_network,
-                             discriminator_network=kddcup99_discriminator_network,
-                             output_dimensions=output_dimensions,
-                             plot_dimensions=plot_dimensions,
+        gan_architecture = KDDCup99GanArchitecture(output_dimensions, plot_dimensions)
+
+        model = RickAndMorty(generator_network=gan_architecture.generator_network,
+                             discriminator_network=gan_architecture.discriminator_network,
+                             output_dimensions=gan_architecture.output_dimensions,
+                             plot_dimensions=gan_architecture.plot_dimensions,
                              batch_size=batch_size,
                              train_iters=train_iters,
                              plot_save_path=self.output_path)
 
         detective = RickAndMortyDetective(model_configuration={
             'model': model,
-            'batch_size': batch_size,
-            'output_dimensions': output_dimensions,
-            'train_iters': train_iters,
+            'batch_size': model.batch_size,
+            'output_dimensions': model.output_dimensions,
+            'train_iters': model.train_iters,
             'plot_save_path': self.output_path
         })
 

@@ -14,18 +14,11 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Forces GPU
 DEFAULT_TRAIN_ITERS = 5000  # How many generator iterations to train for. Default 50k
 DEFAULT_FIT_EPOCHS = 1000  # How many iterations to diagnose the anomaly
 DEFAULT_Z_DIM = 200
-Factor_M = 0.0  # factor M
-LAMBDA_2 = 2.0  # Weight factor. Previously 0.4
 
-DIM = 64  # Model dimensionality
 BATCH_SIZE = 50  # Batch size
 CRITIC_ITERS = 5  # Number of critic iters per gen iter
-LAMBDA = 10  # Gradient penalty lambda hyperparameter
 DEFAULT_LEARN_RATE = 0.0001
 DIAGNOSIS_LEARN_RATE = 0.01
-DISC_FILTER_SIZE = 5
-
-INIT_KERNEL = tf.random_normal_initializer(mean=0.0, stddev=0.02)
 
 reuse = tf.AUTO_REUSE
 getter = None
@@ -40,6 +33,7 @@ class RickAndMorty(object):
     def __init__(self, generator_network, discriminator_network, output_dimensions, plot_dimensions,
                  batch_size=BATCH_SIZE, learning_rate=DEFAULT_LEARN_RATE, train_iters=DEFAULT_TRAIN_ITERS,
                  z_dim=DEFAULT_Z_DIM, plot_save_path=None, load_path=None):
+
         """ Generative model which primarily consists of a generator and discriminator.
 
         :param generator_network:
