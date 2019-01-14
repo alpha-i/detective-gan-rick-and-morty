@@ -108,15 +108,15 @@ class RickAndMorty(object):
         with tf.variable_scope('generator', reuse=reuse, custom_getter=getter):
             return self.generator_network(noise, is_training)
 
-    def discriminator(self, inputs, keep_prob):
+    def discriminator(self, inputs, is_training):
         """ Decides whether the input is anomalous or not
 
         :param tensor inputs:
-        :param keep_prob:
+        :param is_training:
         :return: tensor, tensor: output, feature_layer
         """
         with tf.variable_scope('discriminator', reuse=reuse, custom_getter=getter):
-            return self.discriminator_network(inputs, keep_prob)
+            return self.discriminator_network(inputs, is_training)
 
     def save_plot_fake_samples(self):
         """ Save random samples from the generator to help assess its performance. """
@@ -133,17 +133,17 @@ class RickAndMorty(object):
         samples = self.tf_session.run(fixed_fake_samples)
         return samples.reshape((128,) + self.plot_dimensions)
 
-    def get_cost_ops(self, real_data, keep_prob):
+    def get_cost_ops(self, real_data, is_training):
         """ Defines the cost functions which are used to train the discriminator and generator.
 
         :param real_data: To be fed into discriminator
-        :param keep_prob: Tensor which should hold the value of 1.0 during testing
+        :param is_training: Boolean describing training status
         :return: Cost associated with the generator and discriminator.
         """
         
         fake_data = self.generator(self.batch_size)
-        real_d, inter_layer_real = self.discriminator(real_data, keep_prob)
-        fake_d, inter_layer_fake = self.discriminator(fake_data, keep_prob)
+        real_d, inter_layer_real = self.discriminator(real_data, is_training)
+        fake_d, inter_layer_fake = self.discriminator(fake_data, is_training)
 
         # Calculate seperate losses for discriminator with real and fake images
         real_discriminator_loss = tf.reduce_mean(
@@ -164,9 +164,9 @@ class RickAndMorty(object):
 
         return gen_cost, disc_cost
 
-    def get_training_ops(self, real_data, keep_prob):
+    def get_training_ops(self, real_data, is_training):
 
-        gen_cost, disc_cost = self.get_cost_ops(real_data, keep_prob)
+        gen_cost, disc_cost = self.get_cost_ops(real_data, is_training)
 
         disc_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
         gen_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
@@ -262,9 +262,9 @@ class RickAndMorty(object):
         """
 
         x = tf.placeholder(tf.float32, shape=[self.batch_size, self.output_dimensions])
-        keep_prob = tf.placeholder(tf.float32, name='keep_prob')
+        is_training = tf.placeholder(tf.bool, name='is_training')
 
-        d_output, _ = self.discriminator(x, keep_prob)
+        d_output, _ = self.discriminator(x, is_training)
 
         if self.load_path:  # Load model values if needed
             try:
@@ -286,8 +286,7 @@ class RickAndMorty(object):
             input_batch = input[lo:hi]
             input_batch = input_batch.reshape((self.batch_size, -1))
 
-            # keep prob is 1 for testing; 0.5 for training
-            batch_scores = self.tf_session.run(d_output, feed_dict={x: input_batch, keep_prob: 1.})
+            batch_scores = self.tf_session.run(d_output, feed_dict={x: input_batch, is_training: False})
 
             detection_list.append(batch_scores)
 
@@ -301,7 +300,7 @@ class RickAndMorty(object):
             input_batch[0:n_residuals] = input[-n_residuals:]
             input_batch = input_batch.reshape((self.batch_size, -1))
 
-            batch_scores = self.tf_session.run(d_output, feed_dict={x: input_batch, keep_prob: 1.})
+            batch_scores = self.tf_session.run(d_output, feed_dict={x: input_batch, is_training: False})
             detection_list.append(batch_scores[0:n_residuals])
 
         detector_results = np.concatenate(detection_list).flatten()
@@ -315,10 +314,10 @@ class RickAndMorty(object):
         """
 
         real_data = tf.placeholder(tf.float32, shape=[self.batch_size, self.output_dimensions])
-        keep_prob = tf.placeholder(tf.float32, name='keep_prob')
+        is_training = tf.placeholder(tf.bool, name='is_training')
 
-        gen_cost, disc_cost = self.get_cost_ops(real_data, keep_prob)
-        gen_train_op, disc_train_op = self.get_training_ops(real_data, keep_prob)
+        gen_cost, disc_cost = self.get_cost_ops(real_data, is_training)
+        gen_train_op, disc_train_op = self.get_training_ops(real_data, is_training)
 
         logging.debug("Start training loop...")
         random_batch_generator = train_sample.get_infinite_random_batch_generator(self.batch_size, strict=True)
@@ -336,7 +335,7 @@ class RickAndMorty(object):
                 logging.info("Training iteration {} of {}".format(iteration, self.train_iters))
 
             if iteration > 0:
-                _gen_cost, _ = self.tf_session.run([gen_cost, gen_train_op], feed_dict={keep_prob: 0.5})
+                _gen_cost, _ = self.tf_session.run([gen_cost, gen_train_op], feed_dict={is_training: True})
                 lib.plot.add_to_plot('train gen cost', _gen_cost)
 
             disc_iters = CRITIC_ITERS
@@ -345,7 +344,7 @@ class RickAndMorty(object):
                 _data = _data.reshape((self.batch_size, -1))
                 _disc_cost, _ = self.tf_session.run(
                     [disc_cost, disc_train_op],
-                    feed_dict={real_data: _data, keep_prob: 0.5}
+                    feed_dict={real_data: _data, is_training: True}
                 )
 
             lib.plot.add_to_plot('train disc cost', _disc_cost)

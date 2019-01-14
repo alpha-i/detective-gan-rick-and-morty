@@ -45,7 +45,9 @@ def brainwaves_generator_network(noise, is_training):
     return net
 
 
-def brainwaves_discriminator_network(inputs, keep_prob):
+def brainwaves_discriminator_network(inputs, is_training):
+    keep_prob = tf.cond(is_training, lambda: tf.constant(0.5), lambda: tf.constant(1.))
+
     net = tf.reshape(inputs, [-1, 1, 28, 28])  # 28x28 or 8x98
     net = lib.ops.conv2d.Conv2D('discriminator.1', 1, DIM, DISC_FILTER_SIZE, net,
                                 stride=2)  # name, input, output, filter
