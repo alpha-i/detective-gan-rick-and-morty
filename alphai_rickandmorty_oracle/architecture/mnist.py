@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from alphai_rickandmorty_oracle.networks.abstract import AbstractGanArchitecture
+from alphai_rickandmorty_oracle.architecture.abstract import AbstractGanArchitecture
 
 INIT_KERNEL = tf.random_normal_initializer(mean=0.0, stddev=0.02)
 OUTPUT_DIM = 784  # Number of pixels in MNIST (28*28)

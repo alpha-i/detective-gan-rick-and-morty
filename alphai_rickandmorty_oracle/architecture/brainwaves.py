@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from alphai_rickandmorty_oracle.networks.abstract import AbstractGanArchitecture
+from alphai_rickandmorty_oracle.architecture.abstract import AbstractGanArchitecture
 
 import alphai_rickandmorty_oracle.tflib as lib
 import alphai_rickandmorty_oracle.tflib.ops.linear

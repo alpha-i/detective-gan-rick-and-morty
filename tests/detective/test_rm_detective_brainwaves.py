@@ -13,7 +13,7 @@ from alphai_rickandmorty_oracle.datasource.brainwaves import BrainwavesDataSourc
 from alphai_rickandmorty_oracle.detective import RickAndMortyDetective
 from alphai_rickandmorty_oracle.model import RickAndMorty
 
-from alphai_rickandmorty_oracle.networks.brainwaves import BrainwavesGanArchitecture
+from alphai_rickandmorty_oracle.architecture.brainwaves import BrainwavesGanArchitecture
 
 from tests.helpers import assert_train_files_exist
 

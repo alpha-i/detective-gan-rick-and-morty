@@ -35,8 +35,8 @@ class RickAndMorty(object):
 
         """ Generative model which primarily consists of a generator and discriminator.
 
-        :param architecture: implementation of alphai_rickandmorty_oracle.networks.abstract.AbstractGanArchitecture
-                             defining generator and discriminator networks as well as key dimensions
+        :param architecture: implementation of alphai_rickandmorty_oracle.architecture.abstract.AbstractGanArchitecture
+                             defining generator and discriminator architecture as well as key dimensions
         :param int batch_size: Batch size
         :param learning_rate: Learning rate
         :param train_iters: Number of training iterations
