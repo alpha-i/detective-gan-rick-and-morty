@@ -12,7 +12,7 @@ from alphai_watson.transformer import NullTransformer
 from alphai_rickandmorty_oracle.datasource.kddcup99 import KDDCup99DataSource
 from alphai_rickandmorty_oracle.detective import RickAndMortyDetective
 from alphai_rickandmorty_oracle.model import RickAndMorty
-from alphai_rickandmorty_oracle.networks.kddcup99 import KDDCup99GanArchitecture
+from alphai_rickandmorty_oracle.architecture.kddcup99 import KDDCup99GanArchitecture
 
 from tests.helpers import assert_train_files_exist
 
