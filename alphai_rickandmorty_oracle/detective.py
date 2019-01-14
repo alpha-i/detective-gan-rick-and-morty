@@ -5,14 +5,6 @@ import numpy as np
 from alphai_watson.datasource import Sample
 from alphai_watson.detective import AbstractDetective, DetectionResult
 
-from alphai_rickandmorty_oracle.model import RickAndMorty
-
-DEFAULT_TRAIN_ITERS = 1  # 50k takes 3 hours
-ITERATIONS_PER_TEST = 10000  # 1000
-N_TIMESTEPS = 392  # Larger input to network, but perhaps helps training if more data per batch
-DEFAULT_BATCH_SIZE = 64
-DEFAULT_MODEL_DIMS = 784  # Number of sensors * features_per_sensor
-
 logging.basicConfig(level=logging.DEBUG)
 
 
@@ -26,8 +18,9 @@ class RickAndMortyDetective(AbstractDetective):
         The model configuration is a dictionary containing the configuration parameters for the underlying ML model.
 
         The most important variables are:
+            - model: RickAndMorty model object defining GAN architecture and methods
+            - output_dimensions: set the dimension of the network. it must be set to be conform to the data shape
             - batch_size: which determines the size of the batch during training
-            - output_dimensions: set the dimension of the network. it must be set to be comform to the data shape
             - train_iters: how many iteration the model should do during training
 
         Optional values are:
@@ -37,21 +30,23 @@ class RickAndMortyDetective(AbstractDetective):
 
         :param dict model_configuration:
         """
-        batch_size = model_configuration.get('batch_size', DEFAULT_BATCH_SIZE)
-        output_dimensions = model_configuration.get('output_dimensions', DEFAULT_MODEL_DIMS)
-        train_iters = model_configuration.get('train_iters', DEFAULT_TRAIN_ITERS)
+        model = model_configuration.get('model')
+        output_dimensions = model_configuration.get('output_dimensions')
+        batch_size = model_configuration.get('batch_size')
+        train_iters = model_configuration.get('train_iters')
         plot_save_path = model_configuration.get('plot_save_path')
         load_path = model_configuration.get('load_path')
         save_path = model_configuration.get('save_path')
 
+        self.model = model
+
         self._config = dict(
-            batch_size=batch_size,
             output_dimensions=output_dimensions,
+            batch_size=batch_size,
             train_iters=train_iters,
             plot_save_path=plot_save_path
         )
-        self.model = RickAndMorty(batch_size=batch_size, output_dimensions=output_dimensions, train_iters=train_iters,
-                                  plot_save_path=plot_save_path, load_path=load_path)
+
         self.save_path = save_path
         self.load_path = load_path
 
@@ -73,8 +68,8 @@ class RickAndMortyDetective(AbstractDetective):
         """
         Performs the detection of the model
 
-        :param alphai_watson.datasource.Sample test_sample:
-        :return:
+        :param alphai_watson.datasource.Sample test_sample: input sample to evaluate for anomaly
+        :return alphai_watson.detective.DetectionResult: object containing detection verdict
         """
 
         logging.info("Running detector on {}".format(test_sample))
@@ -91,25 +86,25 @@ class RickAndMortyDetective(AbstractDetective):
             original_sample_rate=test_sample.sample_rate
         )
 
-    def diagnose(self, test_chunk):
+    def diagnose(self, test_sample):
         """
 
-        Finds the closest synthetic chunk to the input data. Useful for highlighting the anomaly.
+        Finds the closest synthetic sample to the input data. Useful for highlighting the anomaly.
 
-        :param ndarray test_chunk:
-        :return: ndarray synthetic_chunk: The synthetic_chunk
+        :param ndarray test_sample: input sample on which to run root cause analysis
+        :return: ndarray synthetic_sample: The closest synthetic sample to the test_sample that the
+                                          generative model could produce
         """
 
-        test_chunk = test_chunk.astype(np.float32)
-        synthetic_chunk = self.model.find_closest_synthetic_chunk(test_chunk)
-        synthetic_chunk = synthetic_chunk.reshape(test_chunk.shape)
+        test_sample = test_sample.astype(np.float32)
+        synthetic_sample = self.model.find_closest_synthetic_sample(test_sample)
+        synthetic_sample = synthetic_sample.reshape(test_sample.shape)
 
-        return synthetic_chunk
+        return synthetic_sample
 
     @property
     def configuration(self):
         """
-        Return a dict with the used configuration, to be saved during testing phase
-        :return:
+        :return: dict with the used configuration, to be saved during testing phase
         """
         return self._config
