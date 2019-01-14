@@ -12,7 +12,7 @@ from alphai_watson.transformer import NullTransformer
 from alphai_rickandmorty_oracle.datasource.mnist import MNISTDataSource
 from alphai_rickandmorty_oracle.detective import RickAndMortyDetective
 from alphai_rickandmorty_oracle.model import RickAndMorty
-from alphai_rickandmorty_oracle.networks.mnist import MNISTGanArchitecture
+from alphai_rickandmorty_oracle.architecture.mnist import MNISTGanArchitecture
 
 from tests.helpers import assert_train_files_exist
 
