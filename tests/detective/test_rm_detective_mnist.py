@@ -68,7 +68,7 @@ class TestDetectiveMNIST(TestCase):
         output_dimensions = 784
         plot_dimensions = (28, 28)
         batch_size = 64
-        train_iters = 100
+        train_iters = 1000
 
         model = RickAndMorty(generator_network=mnist_generator_network,
                              discriminator_network=mnist_discriminator_network,

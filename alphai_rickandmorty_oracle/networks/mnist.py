@@ -67,9 +67,7 @@ def mnist_generator_network(noise, is_training):
     return net
 
 
-def mnist_discriminator_network(inputs, keep_prob):
-    is_training = False if keep_prob == 1 else True
-
+def mnist_discriminator_network(inputs, is_training):
     with tf.variable_scope('layer_1'):
         net = tf.reshape(inputs, [-1, 28, 28, 1])
         net = tf.layers.conv2d(net,

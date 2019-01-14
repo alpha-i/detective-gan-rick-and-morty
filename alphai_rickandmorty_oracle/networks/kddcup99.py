@@ -42,9 +42,7 @@ def kddcup99_generator_network(noise, is_training):
     return net
 
 
-def kddcup99_discriminator_network(inputs, keep_prob):
-    is_training = False if keep_prob == 1 else True
-
+def kddcup99_discriminator_network(inputs, is_training):
     with tf.variable_scope('layer_1'):
         net = tf.layers.dense(inputs,
                               units=256,

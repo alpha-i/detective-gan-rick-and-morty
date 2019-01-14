@@ -71,7 +71,7 @@ class TestDetectiveBrainwaves(TestCase):
         output_dimensions = 784
         plot_dimensions = (28, 28)
         batch_size = 64
-        train_iters = 100
+        train_iters = 1000
         z_dim = 128
 
         model = RickAndMorty(generator_network=brainwaves_generator_network,
