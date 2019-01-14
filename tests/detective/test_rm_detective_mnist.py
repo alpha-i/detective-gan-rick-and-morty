@@ -12,7 +12,7 @@ from alphai_watson.transformer import NullTransformer
 from alphai_rickandmorty_oracle.datasource.mnist import MNISTDataSource
 from alphai_rickandmorty_oracle.detective import RickAndMortyDetective
 from alphai_rickandmorty_oracle.model import RickAndMorty
-from alphai_rickandmorty_oracle.networks.mnist import mnist_generator_network, mnist_discriminator_network
+from alphai_rickandmorty_oracle.networks.mnist import MNISTGanArchitecture
 
 from tests.helpers import assert_train_files_exist
 
@@ -69,20 +69,21 @@ class TestDetectiveMNIST(TestCase):
         plot_dimensions = (28, 28)
         batch_size = 64
         train_iters = 1000
+        gan_architecture = MNISTGanArchitecture(output_dimensions, plot_dimensions)
 
-        model = RickAndMorty(generator_network=mnist_generator_network,
-                             discriminator_network=mnist_discriminator_network,
-                             output_dimensions=output_dimensions,
-                             plot_dimensions=plot_dimensions,
+        model = RickAndMorty(generator_network=gan_architecture.generator_network,
+                             discriminator_network=gan_architecture.discriminator_network,
+                             output_dimensions=gan_architecture.output_dimensions,
+                             plot_dimensions=gan_architecture.plot_dimensions,
                              batch_size=batch_size,
                              train_iters=train_iters,
                              plot_save_path=self.output_path)
 
         detective = RickAndMortyDetective(model_configuration={
             'model': model,
-            'batch_size': batch_size,
-            'output_dimensions': output_dimensions,
-            'train_iters': train_iters,
+            'batch_size': model.batch_size,
+            'output_dimensions': model.output_dimensions,
+            'train_iters': model.train_iters,
             'plot_save_path': self.output_path
         })
 
