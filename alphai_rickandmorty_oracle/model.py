@@ -35,8 +35,9 @@ class RickAndMorty(object):
 
         """ Generative model which primarily consists of a generator and discriminator.
 
-        :param architecture:
-        :param int batch_size:
+        :param architecture: implementation of alphai_rickandmorty_oracle.networks.abstract.AbstractGanArchitecture
+                             defining generator and discriminator networks as well as key dimensions
+        :param int batch_size: Batch size
         :param learning_rate: Learning rate
         :param train_iters: Number of training iterations
         :param z_dim: Size of random number entering generator
@@ -182,7 +183,6 @@ class RickAndMorty(object):
         anomaly_score = tf.reduce_sum(tf.abs(tf.subtract(tf.reshape(self.sample, [-1]), tf.reshape(fake_sample, [-1]))))
         ano_z_optimiser = tf.train.AdamOptimizer(learning_rate=DIAGNOSIS_LEARN_RATE, name='ano_z_optimizer').minimize(
             anomaly_score, var_list=self.ano_z)
-        # self.learning_rate
 
         return ano_z_optimiser, anomaly_score, fake_sample
 

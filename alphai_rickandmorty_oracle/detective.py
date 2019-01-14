@@ -86,21 +86,21 @@ class RickAndMortyDetective(AbstractDetective):
             original_sample_rate=test_sample.sample_rate
         )
 
-    def diagnose(self, test_chunk):
+    def diagnose(self, test_sample):
         """
 
-        Finds the closest synthetic chunk to the input data. Useful for highlighting the anomaly.
+        Finds the closest synthetic sample to the input data. Useful for highlighting the anomaly.
 
-        :param ndarray test_chunk: input chunk on which to run root cause analysis
-        :return: ndarray synthetic_chunk: The closest synthetic chunk to the test_chunkck that the
+        :param ndarray test_sample: input sample on which to run root cause analysis
+        :return: ndarray synthetic_sample: The closest synthetic sample to the test_sample that the
                                           generative model could produce
         """
 
-        test_chunk = test_chunk.astype(np.float32)
-        synthetic_chunk = self.model.find_closest_synthetic_chunk(test_chunk)
-        synthetic_chunk = synthetic_chunk.reshape(test_chunk.shape)
+        test_sample = test_sample.astype(np.float32)
+        synthetic_sample = self.model.find_closest_synthetic_sample(test_sample)
+        synthetic_sample = synthetic_sample.reshape(test_sample.shape)
 
-        return synthetic_chunk
+        return synthetic_sample
 
     @property
     def configuration(self):
