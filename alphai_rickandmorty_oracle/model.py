@@ -31,7 +31,8 @@ class RickAndMorty(object):
     Implementation of GAN neural network
     """
     def __init__(self, architecture, batch_size=BATCH_SIZE, learning_rate=DEFAULT_LEARN_RATE,
-                 train_iters=DEFAULT_TRAIN_ITERS, z_dim=DEFAULT_Z_DIM, plot_save_path=None, load_path=None):
+                 train_iters=DEFAULT_TRAIN_ITERS, z_dim=DEFAULT_Z_DIM, plot_save_path=None, load_path=None,
+                 use_consistency_cost=False):
 
         """ Generative model which primarily consists of a generator and discriminator.
 
@@ -41,6 +42,7 @@ class RickAndMorty(object):
         :param learning_rate: Learning rate
         :param train_iters: Number of training iterations
         :param z_dim: Size of random number entering generator
+        :param use_consistency_cost: Boolean determining if consistency cost should be used in training
         """
 
         self.architecture = architecture
@@ -62,6 +64,8 @@ class RickAndMorty(object):
         self.ano_z = tf.get_variable('ano_z', shape=[1, self.z_dim], dtype=tf.float32, initializer=z_init)
         self.sample = tf.placeholder(tf.float32, shape=[1, self.architecture.output_dimensions])
         self.ano_z_optimiser, self.anomaly_score, self.fake_sample = self._build_diagnosis_tools()
+
+        self.cost_functions = self.get_consistency_cost_ops if use_consistency_cost else self.get_cost_ops
 
     def __del__(self):
         self.tf_session.close()
@@ -123,7 +127,6 @@ class RickAndMorty(object):
 
     def get_cost_ops(self, real_data, is_training):
         """ Defines the cost functions which are used to train the discriminator and generator.
-
         :param real_data: To be fed into discriminator
         :param is_training: Boolean describing training status
         :return: Cost associated with the generator and discriminator.
@@ -152,9 +155,49 @@ class RickAndMorty(object):
 
         return gen_cost, disc_cost
 
+    def get_consistency_cost_ops(self, real_data, is_training, weight_factor=2., factor_m=0.):
+        """ Defines the consistency cost functions which are used to train the discriminator and generator.
+        :param real_data: To be fed into discriminator
+        :param is_training: Boolean describing training status
+        :param weight_factor: Weight factor
+        :param factor_m: Factor M
+        :return: Cost associated with the generator and discriminator.
+        """
+
+        fake_data = self.generator(self.batch_size)
+
+        disc_real, disc_real_2 = self.discriminator(real_data, is_training)
+        disc_real_, disc_real_2_ = self.discriminator(real_data, is_training)
+        disc_fake, disc_fake_ = self.discriminator(fake_data, is_training)
+
+        # original cost
+        gen_cost = -tf.reduce_mean(disc_fake)
+        disc_cost = tf.reduce_mean(disc_fake) - tf.reduce_mean(disc_real)
+
+        # consistency cost
+        consistency_cost = weight_factor * tf.square(disc_real - disc_real_)
+        consistency_cost += weight_factor * 0.1 * tf.reduce_mean(tf.square(disc_real_2 - disc_real_2_),
+                                                                 reduction_indices=[1])
+        ct = tf.maximum(consistency_cost - factor_m, 0.0 * (consistency_cost - factor_m))
+        disc_cost += tf.reduce_mean(ct)
+
+        alpha = tf.random_uniform(
+            shape=[self.batch_size, 1],
+            minval=0.,
+            maxval=1.
+        )
+        differences = fake_data - real_data
+        interpolates = real_data + (alpha * differences)
+        gradients = tf.gradients(self.discriminator(interpolates, is_training)[0], [interpolates])[0]
+        slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), reduction_indices=[1]))
+        gradient_penalty = tf.reduce_mean((slopes - 1.) ** 2)
+        disc_cost += gradient_penalty * gradient_penalty
+
+        return gen_cost, disc_cost
+
     def get_training_ops(self, real_data, is_training):
 
-        gen_cost, disc_cost = self.get_cost_ops(real_data, is_training)
+        gen_cost, disc_cost = self.cost_functions(real_data, is_training)
 
         disc_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
         gen_params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
@@ -303,7 +346,7 @@ class RickAndMorty(object):
         real_data = tf.placeholder(tf.float32, shape=[self.batch_size, self.architecture.output_dimensions])
         is_training = tf.placeholder(tf.bool, name='is_training')
 
-        gen_cost, disc_cost = self.get_cost_ops(real_data, is_training)
+        gen_cost, disc_cost = self.cost_functions(real_data, is_training)
         gen_train_op, disc_train_op = self.get_training_ops(real_data, is_training)
 
         logging.debug("Start training loop...")
