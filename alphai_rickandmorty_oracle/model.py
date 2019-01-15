@@ -133,7 +133,7 @@ class RickAndMorty(object):
         real_d, inter_layer_real = self.discriminator(real_data, is_training)
         fake_d, inter_layer_fake = self.discriminator(fake_data, is_training)
 
-        # Calculate seperate losses for discriminator with real and fake images
+        # Calculate separate losses for discriminator with real and fake images
         real_discriminator_loss = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(logits=inter_layer_real,
                                                     labels=tf.ones_like(inter_layer_real)))
@@ -200,7 +200,7 @@ class RickAndMorty(object):
         :return: ndarray representing the generator's best impersonation of the sample
         """
 
-        logging.info("Searching for closest synthetic sample")
+        logging.debug("Searching for closest synthetic sample")
 
         if self.load_path:
             try:
@@ -211,7 +211,7 @@ class RickAndMorty(object):
         if not self.is_initialised:
             self._initialise_model()
 
-        logging.info("Training synthetic sample.")
+        logging.debug("Training synthetic sample.")
         for epoch in range(n_fit_epochs):
             ano_z, _, ano_score, best_fit_sample = self.tf_session.run(
                 [self.ano_z, self.ano_z_optimiser, self.anomaly_score, self.fake_sample],
@@ -221,7 +221,7 @@ class RickAndMorty(object):
 
         anomaly = sample.flatten() - best_fit_sample.flatten()
         anomaly_rms = np.std(anomaly)
-        logging.info("Synthetic training procedure complete. Anomaly rms of {}".format(ano_z, anomaly_rms))
+        logging.debug("Synthetic training procedure complete. Anomaly rms of {}".format(ano_z, anomaly_rms))
 
         return best_fit_sample
 
