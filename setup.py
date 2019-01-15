@@ -7,7 +7,7 @@ setup(
     version='0.1.0',
     description='Alpha-I Rick and Morty oracle',
     author='Fergus Simpson, Giacomo Mariotti, Parvez Alam Kazi, William Tai',
-    author_email='fergus.simpson@alpha-i.co, giacomo.mariotti@alpha-i.co, parvez.alam.kazi@alpha-i.co, william.tai@alpha-i.co',
+    author_email='info@alpha-i.co',
     packages=find_packages(exclude=['doc', 'tests*']),
     install_requires=[
         'h5py==2.7.1',
