@@ -4,7 +4,7 @@ from setuptools import find_packages
 
 setup(
     name='alphai_rickandmorty_oracle',
-    version='0.1.0',
+    version='0.1.1',
     description='Alpha-I Rick and Morty oracle',
     author='Fergus Simpson, Giacomo Mariotti, Parvez Alam Kazi, William Tai',
     author_email='info@alpha-i.co',
