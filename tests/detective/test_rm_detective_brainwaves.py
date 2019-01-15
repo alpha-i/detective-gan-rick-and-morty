@@ -77,7 +77,8 @@ class TestDetectiveBrainwaves(TestCase):
                              batch_size=batch_size,
                              train_iters=train_iters,
                              z_dim=z_dim,
-                             plot_save_path=self.output_path)
+                             plot_save_path=self.output_path,
+                             use_consistency_cost=True)
 
         detective = RickAndMortyDetective(model_configuration={
             'model': model,
