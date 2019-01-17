@@ -1,7 +1,7 @@
 # Rick and Morty Detective
 
 This repository contains an implementation of a Generative Adversarial Network (GAN) used for anomaly detection. The 
-code is structured to allow a dataset-specific definition of a datascource and of the GAN architecture.
+code is structured to allow a dataset-specific definition of a datasource and of the GAN network architecture.
 
 This repository doesn't contain standalone software but it is meant to work with Alpha-I's Watson.
 
